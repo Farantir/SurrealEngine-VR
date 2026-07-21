@@ -154,7 +154,7 @@ public:
 
 	ULevelInfo* LevelInfo = nullptr;
 	ULevel* Level = nullptr;
-	Package* LevelPackage;
+	Package* LevelPackage = nullptr;
 	UGameInfo* GameInfo = nullptr;
 	UTexture* DefaultTexture = nullptr;
 
