@@ -568,8 +568,11 @@ void PropertyDataBlock::Reset()
 		for (UProperty* prop : Class->Properties)
 			prop->DestructArray(Ptr(prop));
 	}
+	if (Data)
+		GC::RemoveExternalMemory(Size);
 	AlignedFree(Data);
 	Data = nullptr;
+	Size = 0;
 	Class = nullptr;
 }
 
@@ -582,6 +585,7 @@ void PropertyDataBlock::Init(UClass* cls)
 	Class = cls;
 	Size = cls->StructSize;
 	Data = AlignedAlloc(cls->StructAlignment, cls->StructSize);
+	GC::AddExternalMemory(Size);
 
 	for (UProperty* prop : cls->Properties)
 	{

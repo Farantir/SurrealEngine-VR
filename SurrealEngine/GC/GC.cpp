@@ -76,6 +76,16 @@ GCStats GC::GetStats()
 	return stats;
 }
 
+void GC::AddExternalMemory(size_t size)
+{
+	stats.memoryUsage += size;
+}
+
+void GC::RemoveExternalMemory(size_t size)
+{
+	stats.memoryUsage -= size;
+}
+
 GCAllocation* GC::Mark(GCAllocation* marklist)
 {
 	GCAllocation* marklistout = nullptr;

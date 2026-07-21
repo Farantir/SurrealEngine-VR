@@ -97,6 +97,11 @@ public:
 
 	static GCStats Collect(Mode mode = Mode::Full);
 	static GCStats GetStats();
+
+	// Memory owned by a GC object but allocated outside its allocation block, so that the
+	// reported usage is what the objects actually cost rather than just their headers.
+	static void AddExternalMemory(size_t size);
+	static void RemoveExternalMemory(size_t size);
 	static GCObjectList GetObjects();
 
 	static GCAllocation* MarkObject(GCAllocation* marklist, GCObject* obj);
