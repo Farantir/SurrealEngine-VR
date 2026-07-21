@@ -8,9 +8,10 @@ static GCStats stats;
 
 GCRootNode::GCRootNode()
 {
-	if (roots)
-		roots->next = this;
-	prev = roots;
+	// roots is the head of the list and Collect walks it via next
+	next = roots;
+	if (next)
+		next->prev = this;
 	roots = this;
 }
 
@@ -80,7 +81,7 @@ GCAllocation* GC::Mark(GCAllocation* marklist)
 	GCAllocation* marklistout = nullptr;
 	for (GCAllocation* allocation = marklist; allocation != nullptr; allocation = allocation->marklistNext)
 	{
-		allocation->object()->Mark(marklistout);
+		marklistout = allocation->object()->Mark(marklistout);
 	}
 	return marklistout;
 }
