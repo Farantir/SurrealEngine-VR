@@ -574,6 +574,7 @@ public:
 	int Index = -1;
 
 	GCAllocation* Mark(GCAllocation* marklist) override;
+	void PreDestruct() override;
 
 	// Child actor tracking
 	Array<UActor*> ChildActors;

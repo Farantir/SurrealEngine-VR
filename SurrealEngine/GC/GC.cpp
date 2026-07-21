@@ -85,6 +85,12 @@ GCStats GC::GetStats()
 	return stats;
 }
 
+void GC::ClearMarks()
+{
+	for (GCAllocation* cur = allocations; cur != nullptr; cur = cur->allocklistNext)
+		cur->unreferencedFlag = true;
+}
+
 void GC::AddExternalMemory(size_t size)
 {
 	stats.memoryUsage += size;
@@ -119,13 +125,9 @@ GCStats GC::Sweep(Mode mode, UnreachableVisitor visitor)
 		}
 	}
 
+	// Nothing is destroyed, and the marks stay so the caller can inspect what is unreachable.
 	if (mode == Mode::MarkOnly)
-	{
-		// Nothing is destroyed, so only clear the marks for the next cycle.
-		for (GCAllocation* cur = allocations; cur != nullptr; cur = cur->allocklistNext)
-			cur->unreferencedFlag = true;
 		return swept;
-	}
 
 	// Every unreachable object gets to release what it owns while all of them are still
 	// constructed. Destroying them one by one instead would let an object's teardown reach

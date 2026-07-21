@@ -106,6 +106,12 @@ public:
 	static GCStats Collect(Mode mode = Mode::Full, UnreachableVisitor visitor = nullptr);
 	static GCStats GetStats();
 
+	// A mark-only collect leaves the marks in place so callers can inspect reachability, for
+	// example to check that a container of raw pointers holds nothing that is already garbage.
+	// The next collect is only correct once the marks have been cleared again.
+	static bool IsUnreachable(GCObject* obj);
+	static void ClearMarks();
+
 	// Memory owned by a GC object but allocated outside its allocation block, so that the
 	// reported usage is what the objects actually cost rather than just their headers.
 	static void AddExternalMemory(size_t size);
@@ -168,3 +174,5 @@ inline GCAllocation* GC::MarkObject(GCAllocation* marklist, GCObject* obj)
 }
 
 inline GCAllocation* GCObject::Allocation() { return reinterpret_cast<GCAllocation*>(this) - 1; }
+
+inline bool GC::IsUnreachable(GCObject* obj) { return obj && obj->Allocation()->unreferencedFlag; }

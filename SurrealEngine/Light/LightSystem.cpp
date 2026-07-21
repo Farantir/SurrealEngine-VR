@@ -65,6 +65,20 @@ void LightSystem::SetLevel(ULevel* level)
 	Level = level;
 }
 
+size_t LightSystem::CountUnreachableEntries() const
+{
+	size_t count = 0;
+	for (auto& bucket : LightActors)
+	{
+		for (UActor* light : bucket.second)
+		{
+			if (GC::IsUnreachable(light))
+				count++;
+		}
+	}
+	return count;
+}
+
 void LightSystem::AddLight(UActor* light)
 {
 	if (light->LightType() != LT_None && light->LightBrightness() > 0)

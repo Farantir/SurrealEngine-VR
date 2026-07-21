@@ -127,6 +127,20 @@ GCAllocation* UActor::Mark(GCAllocation* marklist)
 	return marklist;
 }
 
+void UActor::PreDestruct()
+{
+	// The spatial hashes hold raw pointers outside the object graph, so an actor being swept
+	// has to take itself out of them. Destroy() normally does this, but a swept actor is not
+	// guaranteed to have gone through it. Both removals are no-ops if it is already out.
+	if (ULevel* level = XLevel())
+	{
+		level->Collision.RemoveFromCollision(this);
+		level->Light.RemoveLight(this);
+	}
+
+	UObject::PreDestruct();
+}
+
 void UActor::InitBase()
 {
 	if (engine->LaunchInfo.ue1Version > 219)
