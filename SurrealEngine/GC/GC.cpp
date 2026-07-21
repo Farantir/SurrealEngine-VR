@@ -5,6 +5,7 @@
 static GCRootNode* roots;
 static GCAllocation* allocations;
 static GCStats stats;
+static std::vector<GC::RootMarker> rootMarkers;
 
 GCRootNode::GCRootNode()
 {
@@ -57,11 +58,19 @@ void GC::FreeMemory(GCAllocation* allocation)
 	free(allocation);
 }
 
+void GC::AddRootMarker(RootMarker marker)
+{
+	rootMarkers.push_back(marker);
+}
+
 GCStats GC::Collect(Mode mode)
 {
 	GCAllocation* marklist = nullptr;
 	for (GCRootNode* root = roots; root != nullptr; root = root->next)
 		marklist = GC::MarkObject(marklist, root->obj);
+
+	for (RootMarker marker : rootMarkers)
+		marklist = marker(marklist);
 
 	while (marklist)
 	{

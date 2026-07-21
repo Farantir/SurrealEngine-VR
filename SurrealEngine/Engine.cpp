@@ -86,6 +86,33 @@ Engine::~Engine()
 
 static void LogGCStats(const std::string& stage, const std::string& mapName);
 
+// The engine keeps the level, the current package and every subsystem in plain pointers.
+// Nothing else refers to them, so without this the level and all of its actors trace as
+// unreachable whether they are still in use or not.
+static GCAllocation* MarkEngineRoots(GCAllocation* marklist)
+{
+	if (!engine)
+		return marklist;
+
+	for (UObject* obj : {
+		(UObject*)engine->gameengine, (UObject*)engine->renderdev, (UObject*)engine->audiodev,
+		(UObject*)engine->netdev, (UObject*)engine->client, (UObject*)engine->viewport,
+		(UObject*)engine->canvas, (UObject*)engine->dxgc, (UObject*)engine->dxSaveInfo,
+		(UObject*)engine->dxConMissionList, (UObject*)engine->console, (UObject*)engine->dxRootWindow,
+		(UObject*)engine->floatprop, (UObject*)engine->EntryLevelInfo, (UObject*)engine->EntryLevel,
+		(UObject*)engine->EntryGameInfo, (UObject*)engine->LevelInfo, (UObject*)engine->Level,
+		(UObject*)engine->GameInfo, (UObject*)engine->DefaultTexture, (UObject*)engine->DeusExLevelInfo,
+		(UObject*)engine->CameraActor })
+	{
+		marklist = GC::MarkObject(marklist, obj);
+	}
+
+	marklist = GC::MarkObject(marklist, engine->LevelPackage);
+	marklist = GC::MarkObject(marklist, engine->EntryLevelPackage);
+	marklist = GC::MarkObject(marklist, engine->deusExPackage);
+	return marklist;
+}
+
 void Engine::Run()
 {
 	LogMessage("Game: " + LaunchInfo.gameName + " (Version: " + LaunchInfo.gameVersionString + ")");
@@ -129,6 +156,8 @@ void Engine::Run()
 	auto rotprop = GC::Alloc<UStructProperty>(NameString(), nullptr, ObjectFlags::NoFlags);
 
 	bool firstCall = true;
+	GC::AddRootMarker(&MarkEngineRoots);
+
 	double nextGCStatsTime = 30.0;
 	while (!quit)
 	{

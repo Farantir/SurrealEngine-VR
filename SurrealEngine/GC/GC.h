@@ -110,6 +110,11 @@ public:
 
 	static GCAllocation* MarkObject(GCAllocation* marklist, GCObject* obj);
 
+	// For subsystems holding objects in plain fields rather than a GCRoot. They report them
+	// from a callback instead of every one of those fields having to change type.
+	using RootMarker = GCAllocation* (*)(GCAllocation*);
+	static void AddRootMarker(RootMarker marker);
+
 private:
 	static GCAllocation* GetAllocations();
 	static GCAllocation* AllocMemory(size_t size);
