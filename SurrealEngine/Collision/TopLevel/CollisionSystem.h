@@ -44,7 +44,7 @@ public:
 
 	// Entries pointing at actors the last mark-only collect found unreachable. Must be zero:
 	// a sweep would free them while the hash still holds the pointers.
-	size_t CountUnreachableEntries() const;
+	size_t CountUnreachableEntries(void (*visitor)(UActor*) = nullptr) const;
 
 private:
 	static ivec3 GetStartExtents(const vec3& location, const vec3& extents)

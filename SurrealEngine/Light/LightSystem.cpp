@@ -65,7 +65,7 @@ void LightSystem::SetLevel(ULevel* level)
 	Level = level;
 }
 
-size_t LightSystem::CountUnreachableEntries() const
+size_t LightSystem::CountUnreachableEntries(void (*visitor)(UActor*)) const
 {
 	size_t count = 0;
 	for (auto& bucket : LightActors)
@@ -73,7 +73,11 @@ size_t LightSystem::CountUnreachableEntries() const
 		for (UActor* light : bucket.second)
 		{
 			if (GC::IsUnreachable(light))
+			{
 				count++;
+				if (visitor)
+					visitor(light);
+			}
 		}
 	}
 	return count;

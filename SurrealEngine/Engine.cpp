@@ -654,6 +654,13 @@ static void CountUnreachable(GCObject* obj)
 		unreachableByClass["(non-object)"]++;
 }
 
+static std::set<UActor*> staleHashActors;
+
+static void RecordStaleActor(UActor* actor)
+{
+	staleHashActors.insert(actor);
+}
+
 static void LogGCStats(const std::string& stage, const std::string& mapName)
 {
 	GCStats stats = GC::GetStats();
@@ -674,9 +681,19 @@ static void LogGCStats(const std::string& stage, const std::string& mapName)
 
 	if (engine->Level)
 	{
-		size_t stale = engine->Level->Collision.CountUnreachableEntries() + engine->Level->Light.CountUnreachableEntries();
+		staleHashActors.clear();
+		size_t stale = engine->Level->Collision.CountUnreachableEntries(&RecordStaleActor) +
+			engine->Level->Light.CountUnreachableEntries(&RecordStaleActor);
 		if (stale != 0)
-			LogMessage("GC stale spatial hash entries: " + std::to_string(stale));
+		{
+			std::string actors;
+			for (UActor* actor : staleHashActors)
+			{
+				actors += (actors.empty() ? "" : ", ") + actor->Class->Name.ToString() +
+					" index " + std::to_string(actor->Index) + (actor->bDeleteMe() ? " deleted" : " live");
+			}
+			LogMessage("GC stale spatial hash entries: " + std::to_string(stale) + " (" + actors + ")");
+		}
 	}
 
 	GC::ClearMarks();

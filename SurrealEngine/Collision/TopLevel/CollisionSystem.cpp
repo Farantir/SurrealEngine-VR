@@ -104,7 +104,7 @@ void CollisionSystem::SetLevel(ULevel* level)
 	Level = level;
 }
 
-size_t CollisionSystem::CountUnreachableEntries() const
+size_t CollisionSystem::CountUnreachableEntries(void (*visitor)(UActor*)) const
 {
 	size_t count = 0;
 	for (auto& bucket : CollisionActors)
@@ -112,7 +112,11 @@ size_t CollisionSystem::CountUnreachableEntries() const
 		for (UActor* actor : bucket.second)
 		{
 			if (GC::IsUnreachable(actor))
+			{
 				count++;
+				if (visitor)
+					visitor(actor);
+			}
 		}
 	}
 	return count;
