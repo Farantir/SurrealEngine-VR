@@ -84,6 +84,8 @@ Engine::~Engine()
 	engine = nullptr;
 }
 
+static void LogGCStats(const std::string& stage, const std::string& mapName);
+
 void Engine::Run()
 {
 	LogMessage("Game: " + LaunchInfo.gameName + " (Version: " + LaunchInfo.gameVersionString + ")");
@@ -127,6 +129,7 @@ void Engine::Run()
 	auto rotprop = GC::Alloc<UStructProperty>(NameString(), nullptr, ObjectFlags::NoFlags);
 
 	bool firstCall = true;
+	double nextGCStatsTime = 30.0;
 	while (!quit)
 	{
 		// Main game loop should consist of these 4 steps:
@@ -141,6 +144,13 @@ void Engine::Run()
 		float levelElapsed = realTimeElapsed * clamp(LevelInfo->TimeDilation(), 0.0025f, 25.0f);
 
 		TotalTime += realTimeElapsed;
+
+		// Map transitions alone say nothing about what a session accumulates while playing.
+		if (TotalTime >= nextGCStatsTime)
+		{
+			nextGCStatsTime = TotalTime + 30.0;
+			LogGCStats("in play", LevelInfo->URL.Map);
+		}
 
 		if (EntryLevel)
 			EntryLevelInfo->TimeSeconds() += entryLevelElapsed;
