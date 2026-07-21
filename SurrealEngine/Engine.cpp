@@ -98,6 +98,10 @@ void Engine::Run()
 	audiodev->InitDevice();
 	render = std::make_unique<RenderSubsystem>(window->GetRenderDevice());
 
+	// Same overlay the "timedemo 1" console command toggles, without having to type it every run.
+	if (const char* showStats = std::getenv("SURREAL_SHOW_STATS"))
+		render->ShowTimedemoStats = (showStats[0] == '1');
+
 	if (engine->LaunchInfo.ue1Version > 219 && !client->StartupFullscreen)
 		viewport->bWindowsMouseAvailable() = true;
 
