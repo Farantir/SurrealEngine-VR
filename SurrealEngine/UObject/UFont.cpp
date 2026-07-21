@@ -3,6 +3,14 @@
 #include "UFont.h"
 #include "UTexture.h"
 
+GCAllocation* UFont::Mark(GCAllocation* marklist)
+{
+	marklist = UTexture::Mark(marklist);
+	for (FontPage& page : pages)
+		marklist = GC::MarkObject(marklist, page.Texture);
+	return marklist;
+}
+
 void UFont::Load(ObjectStream* stream)
 {
 	// Note: 63 package and older inherited from UTexture. Newer versions inherit from UObject

@@ -110,6 +110,19 @@ std::string USurrealAudioDevice::GetPropertyAsString(const NameString& propertyN
 	return {};
 }
 
+GCAllocation* USurrealAudioDevice::Mark(GCAllocation* marklist)
+{
+	marklist = UAudioSubsystem::Mark(marklist);
+	marklist = GC::MarkObject(marklist, m_Viewport);
+	marklist = GC::MarkObject(marklist, CurrentSong);
+	for (PlayingSound& sound : PlayingSounds)
+	{
+		marklist = GC::MarkObject(marklist, sound.Actor);
+		marklist = GC::MarkObject(marklist, sound.Sound);
+	}
+	return marklist;
+}
+
 void USurrealAudioDevice::SetPropertyFromString(const NameString& propertyName, const std::string& value)
 {
 	if (propertyName == "UseFilter")

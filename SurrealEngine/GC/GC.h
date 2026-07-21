@@ -17,6 +17,10 @@ protected:
 	// needing other objects (a property block needs its class and its properties) still works.
 	virtual void PreDestruct() {}
 
+	// Memory the object owns outside its allocation block, so that a sweep can report what
+	// it actually reclaims rather than just the block sizes.
+	virtual size_t ExternalMemorySize() const { return 0; }
+
 	GCAllocation* Allocation();
 	friend class GC;
 };

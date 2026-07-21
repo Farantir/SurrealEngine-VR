@@ -44,6 +44,27 @@ void UPrimitive::Save(PackageStreamWriter* stream)
 
 /////////////////////////////////////////////////////////////////////////////
 
+GCAllocation* UMesh::Mark(GCAllocation* marklist)
+{
+	marklist = UPrimitive::Mark(marklist);
+	for (UTexture* texture : Textures)
+		marklist = GC::MarkObject(marklist, texture);
+	return marklist;
+}
+
+GCAllocation* USkeletalMesh::Mark(GCAllocation* marklist)
+{
+	return GC::MarkObject(ULodMesh::Mark(marklist), DefaultAnimation);
+}
+
+GCAllocation* UStaticMesh::Mark(GCAllocation* marklist)
+{
+	marklist = UMesh::Mark(marklist);
+	for (StaticMeshLODLevel& level : LODLevels)
+		marklist = GC::MarkObject(marklist, level.StaticMesh);
+	return marklist;
+}
+
 void UMesh::Load(ObjectStream* stream)
 {
 	UPrimitive::Load(stream);

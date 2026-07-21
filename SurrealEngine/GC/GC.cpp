@@ -104,7 +104,7 @@ GCStats GC::Sweep(Mode mode)
 		if (cur->unreferencedFlag)
 		{
 			swept.numObjects++;
-			swept.memoryUsage += cur->memsize;
+			swept.memoryUsage += cur->memsize + cur->object()->ExternalMemorySize();
 		}
 	}
 

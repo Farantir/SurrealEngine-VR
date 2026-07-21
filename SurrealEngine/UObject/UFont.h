@@ -46,6 +46,8 @@ public:
 private:
 	FontGlyph FindGlyph(char c) const;
 
+	GCAllocation* Mark(GCAllocation* marklist) override;
+
 	Array<FontPage> pages;
 	int charactersPerPage;
 };

@@ -416,6 +416,7 @@ public:
 protected:
 	GCAllocation* Mark(GCAllocation* marklist) override;
 	void PreDestruct() override;
+	size_t ExternalMemorySize() const override { return PropertyData.Size; }
 };
 
 class UPackage : public UObject

@@ -95,6 +95,8 @@ public:
 	BBox MeshBoundingBox;
 	vec4 MeshBoundingSphere;
 	Array<int> VertLinks;
+	GCAllocation* Mark(GCAllocation* marklist) override;
+
 	Array<UTexture*> Textures;
 	Array<float> TextureLOD;
 	int FrameVerts = 0;
@@ -187,6 +189,8 @@ public:
 	Array<BoneWeight> BoneWeights;
 	Array<vec3> LocalPoints;
 
+	GCAllocation* Mark(GCAllocation* marklist) override;
+
 	uint32_t SkeletalDepth = 0;
 	UAnimation* DefaultAnimation = nullptr;
 	uint32_t WeaponBoneIndex = 0;
@@ -251,6 +255,8 @@ public:
 
 	void Load(ObjectStream* stream) override;
 	void Save(PackageStreamWriter* stream) override;
+
+	GCAllocation* Mark(GCAllocation* marklist) override;
 
 	bool FlipNormals = false;
 	Array<StaticMeshLODLevel> LODLevels;

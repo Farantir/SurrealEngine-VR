@@ -156,6 +156,8 @@ private:
 
 	static float SoundPriority(UViewport* Viewport, vec3 Location, float Volume, float Radius);
 
+	GCAllocation* Mark(GCAllocation* marklist) override;
+
 	UViewport* m_Viewport = nullptr;
 
 	std::unique_ptr<AudioDevice> m_Device;
