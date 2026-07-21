@@ -15,6 +15,8 @@ public:
 	void Load(ObjectStream* stream) override;
 	void Save(PackageStreamWriter* stream) override;
 
+	GCAllocation* Mark(GCAllocation* marklist) override;
+
 	UField* BaseField = nullptr;
 	UField* Next = nullptr;
 };
@@ -63,6 +65,8 @@ public:
 	UStruct* StructParent = nullptr;
 	Array<uint8_t> Bytecode, BytecodeRaw;
 	std::shared_ptr<::Bytecode> Code;
+
+	GCAllocation* Mark(GCAllocation* marklist) override;
 
 	size_t StructAlignment = 1;
 	size_t StructSize = 0;
@@ -122,6 +126,8 @@ public:
 	FunctionFlags FuncFlags = {};
 	uint16_t ReplicationOffset = 0;
 
+	GCAllocation* Mark(GCAllocation* marklist) override;
+
 	UStruct* NativeStruct = nullptr;
 };
 
@@ -151,6 +157,8 @@ public:
 	ScriptStateFlags StateFlags = {};
 
 	UFunction* GetFunction(const NameString& name) { auto it = Functions.find(name); if (it != Functions.end()) return it->second; else return nullptr; }
+	GCAllocation* Mark(GCAllocation* marklist) override;
+
 	std::map<NameString, UFunction*> Functions;
 };
 
@@ -218,6 +226,8 @@ public:
 	NameString ClassConfigName;
 
 	UState* GetState(const NameString& name) { auto it = States.find(name); if (it != States.end()) return it->second; else return nullptr; }
+	GCAllocation* Mark(GCAllocation* marklist) override;
+
 	std::map<NameString, UState*> States;
 
 private:

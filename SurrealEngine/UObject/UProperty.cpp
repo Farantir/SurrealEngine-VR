@@ -74,6 +74,85 @@ void UProperty::CopyConstructArray(void* data, const void* src)
 	}
 }
 
+GCAllocation* UProperty::MarkArray(GCAllocation* marklist, void* data)
+{
+	for (int i = 0; i < ArrayDimension; i++)
+		marklist = MarkElement(marklist, GetElement(data, i));
+	return marklist;
+}
+
+GCAllocation* UByteProperty::Mark(GCAllocation* marklist)
+{
+	return GC::MarkObject(UField::Mark(marklist), EnumType);
+}
+
+GCAllocation* UObjectProperty::Mark(GCAllocation* marklist)
+{
+	return GC::MarkObject(UField::Mark(marklist), ObjectClass);
+}
+
+GCAllocation* UClassProperty::Mark(GCAllocation* marklist)
+{
+	return GC::MarkObject(UObjectProperty::Mark(marklist), MetaClass);
+}
+
+GCAllocation* UStructProperty::Mark(GCAllocation* marklist)
+{
+	return GC::MarkObject(UField::Mark(marklist), Struct);
+}
+
+GCAllocation* UArrayProperty::Mark(GCAllocation* marklist)
+{
+	return GC::MarkObject(UField::Mark(marklist), Inner);
+}
+
+GCAllocation* UFixedArrayProperty::Mark(GCAllocation* marklist)
+{
+	return GC::MarkObject(UField::Mark(marklist), Inner);
+}
+
+GCAllocation* UMapProperty::Mark(GCAllocation* marklist)
+{
+	marklist = GC::MarkObject(UField::Mark(marklist), Key);
+	return GC::MarkObject(marklist, Value);
+}
+
+GCAllocation* UObjectProperty::MarkElement(GCAllocation* marklist, void* data)
+{
+	return GC::MarkObject(marklist, *static_cast<UObject**>(data));
+}
+
+GCAllocation* UStructProperty::MarkElement(GCAllocation* marklist, void* data)
+{
+	if (Struct)
+	{
+		for (UProperty* prop : Struct->Properties)
+			marklist = prop->MarkArray(marklist, static_cast<uint8_t*>(data) + prop->DataOffset.DataOffset);
+	}
+	return marklist;
+}
+
+GCAllocation* UFixedArrayProperty::MarkElement(GCAllocation* marklist, void* data)
+{
+	if (Inner)
+	{
+		for (int i = 0; i < Count; i++)
+			marklist = Inner->MarkElement(marklist, Inner->GetElement(data, i));
+	}
+	return marklist;
+}
+
+GCAllocation* UArrayProperty::MarkElement(GCAllocation* marklist, void* data)
+{
+	ScriptArray* array = static_cast<ScriptArray*>(data);
+	if (Inner && array->GetData())
+	{
+		for (size_t i = 0; i < array->GetSize(); i++)
+			marklist = Inner->MarkElement(marklist, array->GetItem(i));
+	}
+	return marklist;
+}
+
 void UProperty::DestructArray(void* data)
 {
 	for (int i = 0; i < ArrayDimension; i++)

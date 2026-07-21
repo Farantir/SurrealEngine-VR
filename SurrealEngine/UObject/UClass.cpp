@@ -66,6 +66,50 @@ UStruct::UStruct(NameString name, UClass* cls, ObjectFlags flags, UStruct* base)
 	BaseStruct = base;
 }
 
+GCAllocation* UField::Mark(GCAllocation* marklist)
+{
+	marklist = UObject::Mark(marklist);
+	marklist = GC::MarkObject(marklist, BaseField);
+	marklist = GC::MarkObject(marklist, Next);
+	return marklist;
+}
+
+GCAllocation* UStruct::Mark(GCAllocation* marklist)
+{
+	marklist = UField::Mark(marklist);
+	marklist = GC::MarkObject(marklist, BaseStruct);
+	marklist = GC::MarkObject(marklist, ScriptText);
+	marklist = GC::MarkObject(marklist, Children);
+	marklist = GC::MarkObject(marklist, StructParent);
+	for (UProperty* prop : Properties)
+		marklist = GC::MarkObject(marklist, prop);
+	return marklist;
+}
+
+GCAllocation* UFunction::Mark(GCAllocation* marklist)
+{
+	marklist = UStruct::Mark(marklist);
+	return GC::MarkObject(marklist, NativeStruct);
+}
+
+GCAllocation* UState::Mark(GCAllocation* marklist)
+{
+	marklist = UStruct::Mark(marklist);
+	for (auto& it : Functions)
+		marklist = GC::MarkObject(marklist, it.second);
+	return marklist;
+}
+
+GCAllocation* UClass::Mark(GCAllocation* marklist)
+{
+	marklist = UState::Mark(marklist);
+	for (auto& it : States)
+		marklist = GC::MarkObject(marklist, it.second);
+	for (ClassDependency& dep : Dependencies)
+		marklist = GC::MarkObject(marklist, dep.Class);
+	return marklist;
+}
+
 void UStruct::Load(ObjectStream* stream)
 {
 	UField::Load(stream);

@@ -75,6 +75,11 @@ public:
 	void* GetElement(void* data, size_t index) { return static_cast<char*>(data) + index * ElementPitch(); }
 	const void* GetElement(const void* data, size_t index) { return static_cast<const char*>(data) + index * ElementPitch(); }
 
+	// Reports the objects a property value refers to. Only the types that can hold a
+	// reference override this; everything else keeps the default of reporting nothing.
+	virtual GCAllocation* MarkElement(GCAllocation* marklist, void* data) { return marklist; }
+	GCAllocation* MarkArray(GCAllocation* marklist, void* data);
+
 	virtual void ConstructElement(void* data) = 0;
 	virtual void CopyConstructElement(void* data, const void* src) = 0;
 	virtual void CopyElement(void* data, const void* src) = 0;
@@ -213,6 +218,8 @@ public:
 	bool IsDefaultValue(void* val) override;
 	void SetValueFromString(void* data, const std::string& valueString) override;
 
+	GCAllocation* Mark(GCAllocation* marklist) override;
+
 	UEnum* EnumType = nullptr; // null if it is a normal byte, otherwise it is an enum type
 };
 
@@ -233,6 +240,10 @@ public:
 	std::string PrintValue(const void* data) override;
 	bool IsDefaultValue(void* val) override;
 	void SetValueFromString(void* data, const std::string& valueString) override;
+
+	GCAllocation* MarkElement(GCAllocation* marklist, void* data) override;
+
+	GCAllocation* Mark(GCAllocation* marklist) override;
 
 	UClass* ObjectClass = nullptr;
 };
@@ -261,6 +272,10 @@ public:
 	bool CompareLessElement(const void* v1, const void* v2) override;
 
 	std::string PrintValue(const void* data) override;
+
+	GCAllocation* MarkElement(GCAllocation* marklist, void* data) override;
+
+	GCAllocation* Mark(GCAllocation* marklist) override;
 
 	UProperty* Inner = nullptr;
 	int Count = 0;
@@ -292,6 +307,9 @@ public:
 	void GetExportText(std::string& buf, const std::string& whitespace, UObject* obj, UObject* defobj, int i) override;
 	std::string PrintValue(const void* data) override;
 
+	GCAllocation* MarkElement(GCAllocation* marklist, void* data) override;
+	GCAllocation* Mark(GCAllocation* marklist) override;
+
 	UProperty* Inner = nullptr;
 };
 
@@ -322,6 +340,8 @@ public:
 
 	std::string PrintValue(const void* data) override;
 
+	GCAllocation* Mark(GCAllocation* marklist) override;
+
 	UProperty* Key = nullptr;
 	UProperty* Value = nullptr;
 };
@@ -335,6 +355,8 @@ public:
 	void Save(PackageStreamWriter* stream) override;
 
 	std::string PrintValue(const void* data) override;
+
+	GCAllocation* Mark(GCAllocation* marklist) override;
 
 	UClass* MetaClass = nullptr;
 };
@@ -366,6 +388,10 @@ public:
 	void GetExportText(std::string& buf, const std::string& whitespace, UObject* obj, UObject* defobj, int i) override;
 	std::string PrintValue(const void* data) override;
 	void SetValueFromString(void* data, const std::string& valueString) override;
+
+	GCAllocation* MarkElement(GCAllocation* marklist, void* data) override;
+
+	GCAllocation* Mark(GCAllocation* marklist) override;
 
 	UStruct* Struct = nullptr;
 };

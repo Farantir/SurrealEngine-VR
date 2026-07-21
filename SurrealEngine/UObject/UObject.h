@@ -413,7 +413,7 @@ public:
 	int& ObjectIndex() { return Value<int>(PropOffsets_Object.ObjectIndex); }
 	UObject*& ObjectArchetype() { return Value<UObject*>(PropOffsets_Object.ObjectArchetype); }
 
-private:
+protected:
 	GCAllocation* Mark(GCAllocation* marklist) override;
 	void PreDestruct() override;
 };

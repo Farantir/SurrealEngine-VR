@@ -554,8 +554,28 @@ void UObject::PreDestruct()
 
 GCAllocation* UObject::Mark(GCAllocation* marklist)
 {
-	//for (UProperty* prop : Class->Properties)
-	//	marklist = prop->MarkProperty(marklist, PropertyData);
+	marklist = GC::MarkObject(marklist, Class);
+	marklist = GC::MarkObject(marklist, package);
+
+	if (DelayLoad)
+	{
+		marklist = GC::MarkObject(marklist, DelayLoad->package);
+		marklist = GC::MarkObject(marklist, DelayLoad->Class);
+		marklist = GC::MarkObject(marklist, DelayLoad->Outer);
+	}
+
+	if (StateFrame)
+	{
+		marklist = GC::MarkObject(marklist, StateFrame->Object);
+		marklist = GC::MarkObject(marklist, StateFrame->Func);
+	}
+
+	if (Class && PropertyData.Data)
+	{
+		for (UProperty* prop : Class->Properties)
+			marklist = prop->MarkArray(marklist, PropertyData.Ptr(prop));
+	}
+
 	return marklist;
 }
 
