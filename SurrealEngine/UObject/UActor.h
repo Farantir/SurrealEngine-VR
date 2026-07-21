@@ -573,6 +573,8 @@ public:
 	// Index in level Actors array
 	int Index = -1;
 
+	GCAllocation* Mark(GCAllocation* marklist) override;
+
 	// Child actor tracking
 	Array<UActor*> ChildActors;
 	// Based actor tracking

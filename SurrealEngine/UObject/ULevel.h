@@ -239,6 +239,8 @@ public:
 
 	Array<UActor*> Lights;
 
+	GCAllocation* Mark(GCAllocation* marklist) override;
+
 	int32_t RootOutside;
 	int32_t Linked;
 };
@@ -274,6 +276,8 @@ public:
 	void Load(ObjectStream* stream) override;
 	void Save(PackageStreamWriter* stream) override;
 
+	GCAllocation* Mark(GCAllocation* marklist) override;
+
 	Array<UActor*> Actors;
 
 	std::string Protocol;
@@ -294,6 +298,8 @@ public:
 	void Save(PackageStreamWriter* stream) override;
 
 	void Tick(float elapsed, bool gamePaused);
+
+	GCAllocation* Mark(GCAllocation* marklist) override;
 
 	Array<LevelReachSpec> ReachSpecs;
 	UModel* Model = nullptr;

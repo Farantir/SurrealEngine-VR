@@ -24,6 +24,56 @@ BBox BspNode::GetCollisionBox(UModel* model) const
 	return bbox;
 }
 
+GCAllocation* ULevelBase::Mark(GCAllocation* marklist)
+{
+	marklist = UObject::Mark(marklist);
+	for (UActor* actor : Actors)
+		marklist = GC::MarkObject(marklist, actor);
+	return marklist;
+}
+
+GCAllocation* ULevel::Mark(GCAllocation* marklist)
+{
+	marklist = ULevelBase::Mark(marklist);
+	marklist = GC::MarkObject(marklist, Model);
+	for (LevelReachSpec& spec : ReachSpecs)
+	{
+		marklist = GC::MarkObject(marklist, spec.startActor);
+		marklist = GC::MarkObject(marklist, spec.endActor);
+	}
+	return marklist;
+}
+
+GCAllocation* UModel::Mark(GCAllocation* marklist)
+{
+	marklist = UPrimitive::Mark(marklist);
+	marklist = GC::MarkObject(marklist, OldFormat.Vectors);
+	marklist = GC::MarkObject(marklist, OldFormat.Points);
+	marklist = GC::MarkObject(marklist, OldFormat.Nodes);
+	marklist = GC::MarkObject(marklist, OldFormat.Surfaces);
+	marklist = GC::MarkObject(marklist, OldFormat.Verts);
+	marklist = GC::MarkObject(marklist, OldFormat.Unknown1);
+	marklist = GC::MarkObject(marklist, OldFormat.Unknown2);
+	marklist = GC::MarkObject(marklist, Polys);
+
+	for (ZoneProperties& zone : Zones)
+		marklist = GC::MarkObject(marklist, zone.ZoneActor);
+	for (UActor* light : Lights)
+		marklist = GC::MarkObject(marklist, light);
+	for (BspSurface& surface : Surfaces)
+	{
+		marklist = GC::MarkObject(marklist, surface.Material);
+		marklist = GC::MarkObject(marklist, surface.BrushActor);
+	}
+	for (BspNode& node : Nodes)
+	{
+		for (LevelDecal& decal : node.Decals)
+			marklist = GC::MarkObject(marklist, decal.Decal);
+		marklist = GC::MarkObject(marklist, node.ActorList);
+	}
+	return marklist;
+}
+
 void ULevelBase::Load(ObjectStream* stream)
 {
 	UObject::Load(stream);

@@ -113,6 +113,20 @@ UActor* UActor::Spawn(UClass* SpawnClass, std::optional<UActor*> SpawnOwner, std
 	return actor;
 }
 
+GCAllocation* UActor::Mark(GCAllocation* marklist)
+{
+	marklist = UObject::Mark(marklist);
+	for (UActor* actor : ChildActors)
+		marklist = GC::MarkObject(marklist, actor);
+	for (UActor* actor : BasedActors)
+		marklist = GC::MarkObject(marklist, actor);
+	for (UActor* light : LightInfo.LightList)
+		marklist = GC::MarkObject(marklist, light);
+	marklist = GC::MarkObject(marklist, BspInfo.Prev);
+	marklist = GC::MarkObject(marklist, BspInfo.Next);
+	return marklist;
+}
+
 void UActor::InitBase()
 {
 	if (engine->LaunchInfo.ue1Version > 219)
