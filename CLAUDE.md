@@ -67,3 +67,16 @@ Head tracking + stereo rendering via OpenXR, plus hand aiming, a wrist HUD table
 - **`SurrealVideo/`** — ffmpeg-derived video decoding, built as a shared library.
 
 `SurrealEngine.pk3` holds engine-provided assets (shaders, UI resources) packaged into the build.
+
+
+# Instructions on how to code
+
+**DO NOT** commit without the user explicitly asking
+**DO NOT** include claude as co-author in a commit
+**DO NOT** include Any reference of Claude, LLM, Model version, Session, etc. in the commit
+**DO NOT** create long commit messages
+**DO NOT** include bug identifyers, "cryptic numbers" etc. in the commit message
+**DO** create small consise commits
+**DO** create consize commit messages
+Be sparse with code comments, only comment important things biefly. Do not include include bug identifyers, "cryptic numbers" etc. in the code comments
+
