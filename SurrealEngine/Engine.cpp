@@ -24,6 +24,7 @@
 #include "Math/FrustumPlanes.h"
 #include "GameWindow.h"
 #include "RenderDevice/RenderDevice.h"
+#include "GC/GC.h"
 #include "VM/Frame.h"
 #include "VM/ScriptCall.h"
 #include "Video/VideoPlayer.h"
@@ -595,10 +596,24 @@ void Engine::LoadEntryMap()
 	viewport->Actor() = nullptr;
 }
 
+// Object/memory footprint at every map transition, plus what a working sweep would reclaim.
+// The mark-only collect destroys nothing, so this is safe to run while the mark phase is
+// still being filled in - the "unreachable" number is what tracing has to bring down.
+static void LogGCStats(const std::string& stage, const std::string& mapName)
+{
+	GCStats stats = GC::GetStats();
+	GCStats unreachable = GC::Collect(GC::Mode::MarkOnly);
+	LogMessage("GC " + stage + " " + mapName + ": " + std::to_string(stats.numObjects) + " objects, " +
+		std::to_string(stats.memoryUsage / (1024 * 1024)) + " mb, " + std::to_string(unreachable.numObjects) +
+		" unreachable (" + std::to_string(unreachable.memoryUsage / (1024 * 1024)) + " mb)");
+}
+
 void Engine::UnloadMap()
 {
 	if (!LevelPackage)
 		return;
+
+	LogGCStats("before unload", LevelPackage->GetPackageName().ToString());
 
 	LevelInfo = nullptr;
 	if (packages->IsDeusEx())
@@ -715,6 +730,8 @@ void Engine::LoadMap(const UnrealURL& url, const std::map<std::string, std::stri
 
 	if (LevelInfo->Game())
 		CallEvent(LevelInfo->Game(), "DetailChange", {});
+
+	LogGCStats("after load", url.Map);
 }
 
 void Engine::LoadFromSaveFile(const UnrealURL& url)
