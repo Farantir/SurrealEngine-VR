@@ -33,10 +33,11 @@ top of `Engine::Run`, before any map loads.
 
 Actors take themselves out of the collision and light spatial hashes in `PreDestruct`. Those
 hashes hold raw `UActor*` outside the object graph, so a sweep would otherwise free actors the
-collision system still walks. `UActor::Destroy` already removes them on the normal path, and it
-is the only path by which an actor leaves `Level->Actors`, but a swept actor is not guaranteed
-to have gone through it. Both removals are guarded by an `Inserted` flag, so doing it twice is
-a no-op.
+collision system still walks. `UActor::Destroy` removes them on the normal path, and it is the
+only place an actor leaves `Level->Actors`, so it looked as though the hashes could never hold
+an unreachable actor. Measurement says otherwise, so the removal in `PreDestruct` is what
+actually makes a sweep safe here. Both removals are guarded by an `Inserted` flag, so doing it
+twice is a no-op.
 
 ## Instrumentation
 
@@ -45,8 +46,8 @@ seconds of play, and writes to the engine log:
 
 - total objects and memory, and how many objects and how much memory are unreachable
 - the fifteen classes with the most unreachable instances
-- stale spatial hash entries, if any; this line is absent when the count is zero, which is the
-  expected case
+- stale spatial hash entries, if any, with the class, actor index and delete flag of each one.
+  The line is absent when the count is zero
 
 A mark-only collect leaves the marks in place so reachability can be inspected afterwards
 (`GC::IsUnreachable`). The caller must then call `GC::ClearMarks`, or the next collect will see
@@ -88,12 +89,35 @@ Fixing the root registration order dropped the unreachable count right after a m
 `Engine` held it in a plain pointer, so the level and every actor traced as unreachable whether
 alive or not. Any measurement taken before commit `5b857d8e` is worthless for that reason.
 
-## Not yet verified
+## Stale spatial hash entries: confirmed, not yet explained
 
-The stale spatial hash line has not been seen in a session yet, because the fix and the audit
-landed together and the build has only been smoke-tested for thirty seconds. The next session
-should confirm the line stays absent. If it ever appears, something removes an actor from the
-level without going through `Destroy`.
+The audit was expected to stay silent. It did not. On DM-Deck16 the stale count was 0 at ten
+seconds, 3 at twenty, and then a steady 4 from thirty seconds to the end of the session. Actors
+really do become unreachable while a spatial hash still points at them, which means the removal
+in `PreDestruct` is doing necessary work rather than guarding an invariant that already held.
+
+The count stays at 4 while the unreachable total climbs past a thousand, so this is a small
+fixed set of actors on some specific path, not a general failure. Entries are counted per
+bucket and an actor occupies every bucket its extents overlap, so four entries may be as few as
+one actor.
+
+The same session confirmed `ClearMarks` is correct: the live set stayed between 20347 and 20509
+across seven samples and the class histogram was unchanged, so leaving marks in place for the
+audit did not corrupt the measurement.
+
+The diagnostic now also logs each distinct stale actor's class, its `Index` in the level actor
+array, and whether `bDeleteMe` is set. That flag should decide the diagnosis on the next run:
+
+- `deleted` means `Destroy` ran but a removal was skipped, or the actor was added back to a hash
+  afterwards. `SetCollision`, `SetLocation` and the base and zone changes in `UActor.cpp` all
+  remove and re-add, so one of those running after `Destroy` would produce exactly this.
+- `live` means an actor that was never destroyed became unreachable, which would be a gap in the
+  mark phase rather than a hash bug, and a more serious finding.
+
+## Where to pick up
+
+Run a session of a few minutes and read the stale hash line. Everything else below is known
+work; this is the one open question, and one session answers it.
 
 ## Open work
 
@@ -139,3 +163,4 @@ pointer fails loudly instead of reading recycled memory.
     5b857d8e  Register the engine roots before the first map loads
     f0d44f4b  Log which classes the unreachable objects belong to
     11b18d6b  Remove swept actors from the collision and light hashes
+    6ba35051  Report which actors are left behind in the spatial hashes
