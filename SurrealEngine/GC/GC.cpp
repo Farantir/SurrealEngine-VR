@@ -57,7 +57,7 @@ void GC::FreeMemory(GCAllocation* allocation)
 	free(allocation);
 }
 
-void GC::Collect()
+GCStats GC::Collect(Mode mode)
 {
 	GCAllocation* marklist = nullptr;
 	for (GCRootNode* root = roots; root != nullptr; root = root->next)
@@ -68,7 +68,7 @@ void GC::Collect()
 		marklist = Mark(marklist);
 	}
 
-	Sweep();
+	return Sweep(mode);
 }
 
 GCStats GC::GetStats()
@@ -86,8 +86,35 @@ GCAllocation* GC::Mark(GCAllocation* marklist)
 	return marklistout;
 }
 
-void GC::Sweep()
+GCStats GC::Sweep(Mode mode)
 {
+	GCStats swept;
+	for (GCAllocation* cur = allocations; cur != nullptr; cur = cur->allocklistNext)
+	{
+		if (cur->unreferencedFlag)
+		{
+			swept.numObjects++;
+			swept.memoryUsage += cur->memsize;
+		}
+	}
+
+	if (mode == Mode::MarkOnly)
+	{
+		// Nothing is destroyed, so only clear the marks for the next cycle.
+		for (GCAllocation* cur = allocations; cur != nullptr; cur = cur->allocklistNext)
+			cur->unreferencedFlag = true;
+		return swept;
+	}
+
+	// Every unreachable object gets to release what it owns while all of them are still
+	// constructed. Destroying them one by one instead would let an object's teardown reach
+	// into another object that this same sweep has already destroyed.
+	for (GCAllocation* cur = allocations; cur != nullptr; cur = cur->allocklistNext)
+	{
+		if (cur->unreferencedFlag)
+			cur->object()->PreDestruct();
+	}
+
 	GCAllocation* prev = nullptr;
 	GCAllocation* cur = allocations;
 	while (cur)
@@ -115,4 +142,6 @@ void GC::Sweep()
 			cur = cur->allocklistNext;
 		}
 	}
+
+	return swept;
 }

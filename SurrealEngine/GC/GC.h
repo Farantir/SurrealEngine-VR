@@ -13,6 +13,10 @@ protected:
 	virtual ~GCObject() = default;
 	virtual GCAllocation* Mark(GCAllocation* marklist) = 0;
 
+	// Called on every unreachable object before any of them is destroyed, so that teardown
+	// needing other objects (a property block needs its class and its properties) still works.
+	virtual void PreDestruct() {}
+
 	GCAllocation* Allocation();
 	friend class GC;
 };
@@ -87,7 +91,11 @@ public:
 		}
 	}
 
-	static void Collect();
+	// MarkOnly traces and reports what would be freed without destroying anything. Use it to
+	// validate that the mark phase reaches everything before letting the sweep free memory.
+	enum class Mode { MarkOnly, Full };
+
+	static GCStats Collect(Mode mode = Mode::Full);
 	static GCStats GetStats();
 	static GCObjectList GetObjects();
 
@@ -98,7 +106,7 @@ private:
 	static GCAllocation* AllocMemory(size_t size);
 	static void FreeMemory(GCAllocation* allocation);
 	static GCAllocation* Mark(GCAllocation* allocation);
-	static void Sweep();
+	static GCStats Sweep(Mode mode);
 
 	friend class GCObjectList;
 };

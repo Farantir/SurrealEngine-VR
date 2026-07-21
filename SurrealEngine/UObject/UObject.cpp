@@ -547,6 +547,11 @@ void UObject::GotoState(NameString stateName, const NameString& labelName)
 		CallEvent(this, EventName::BeginState);
 }
 
+void UObject::PreDestruct()
+{
+	PropertyData.Reset();
+}
+
 GCAllocation* UObject::Mark(GCAllocation* marklist)
 {
 	//for (UProperty* prop : Class->Properties)
@@ -558,15 +563,11 @@ GCAllocation* UObject::Mark(GCAllocation* marklist)
 
 void PropertyDataBlock::Reset()
 {
-	// To do: this crashes as the class might have been destroyed first
-	/*if (Data && Class)
+	if (Data && Class)
 	{
-		for (auto& it : Class->Properties)
-		{
-			UProperty* prop = it.second;
-			prop->Destruct(Ptr(prop));
-		}
-	}*/
+		for (UProperty* prop : Class->Properties)
+			prop->DestructArray(Ptr(prop));
+	}
 	AlignedFree(Data);
 	Data = nullptr;
 	Class = nullptr;

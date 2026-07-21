@@ -251,12 +251,15 @@ public:
 	template<typename T>
 	T& Value(size_t offset) { return *reinterpret_cast<T*>(static_cast<uint8_t*>(Data) + offset); }
 
+	// Destructs every property value and frees the block. Requires Class and its properties
+	// to still be alive, so the GC calls it from PreDestruct rather than from the destructor.
+	void Reset();
+
 	void* Data = nullptr;
 	size_t Size = 0;
 	UClass* Class = nullptr;
 
 private:
-	void Reset();
 
 	PropertyDataBlock(const PropertyDataBlock&) = delete;
 	PropertyDataBlock& operator=(const PropertyDataBlock&) = delete;
@@ -412,6 +415,7 @@ public:
 
 private:
 	GCAllocation* Mark(GCAllocation* marklist) override;
+	void PreDestruct() override;
 };
 
 class UPackage : public UObject
