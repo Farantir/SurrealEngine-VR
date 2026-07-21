@@ -115,6 +115,8 @@ static GCAllocation* MarkEngineRoots(GCAllocation* marklist)
 
 void Engine::Run()
 {
+	GC::AddRootMarker(&MarkEngineRoots);
+
 	LogMessage("Game: " + LaunchInfo.gameName + " (Version: " + LaunchInfo.gameVersionString + ")");
 	LoadEngineSettings();
 	LogMessage("Loaded Engine settings");
@@ -156,8 +158,6 @@ void Engine::Run()
 	auto rotprop = GC::Alloc<UStructProperty>(NameString(), nullptr, ObjectFlags::NoFlags);
 
 	bool firstCall = true;
-	GC::AddRootMarker(&MarkEngineRoots);
-
 	double nextGCStatsTime = 30.0;
 	while (!quit)
 	{
