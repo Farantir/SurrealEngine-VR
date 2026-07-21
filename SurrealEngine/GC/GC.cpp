@@ -63,7 +63,7 @@ void GC::AddRootMarker(RootMarker marker)
 	rootMarkers.push_back(marker);
 }
 
-GCStats GC::Collect(Mode mode)
+GCStats GC::Collect(Mode mode, UnreachableVisitor visitor)
 {
 	GCAllocation* marklist = nullptr;
 	for (GCRootNode* root = roots; root != nullptr; root = root->next)
@@ -77,7 +77,7 @@ GCStats GC::Collect(Mode mode)
 		marklist = Mark(marklist);
 	}
 
-	return Sweep(mode);
+	return Sweep(mode, visitor);
 }
 
 GCStats GC::GetStats()
@@ -105,7 +105,7 @@ GCAllocation* GC::Mark(GCAllocation* marklist)
 	return marklistout;
 }
 
-GCStats GC::Sweep(Mode mode)
+GCStats GC::Sweep(Mode mode, UnreachableVisitor visitor)
 {
 	GCStats swept;
 	for (GCAllocation* cur = allocations; cur != nullptr; cur = cur->allocklistNext)
@@ -114,6 +114,8 @@ GCStats GC::Sweep(Mode mode)
 		{
 			swept.numObjects++;
 			swept.memoryUsage += cur->memsize + cur->object()->ExternalMemorySize();
+			if (visitor)
+				visitor(cur->object());
 		}
 	}
 

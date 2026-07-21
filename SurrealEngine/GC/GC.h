@@ -99,7 +99,11 @@ public:
 	// validate that the mark phase reaches everything before letting the sweep free memory.
 	enum class Mode { MarkOnly, Full };
 
-	static GCStats Collect(Mode mode = Mode::Full);
+	// Called for each unreachable object during a collection, before anything is destroyed.
+	// A count on its own says nothing about what the garbage actually is.
+	using UnreachableVisitor = void (*)(GCObject* obj);
+
+	static GCStats Collect(Mode mode = Mode::Full, UnreachableVisitor visitor = nullptr);
 	static GCStats GetStats();
 
 	// Memory owned by a GC object but allocated outside its allocation block, so that the
@@ -120,7 +124,7 @@ private:
 	static GCAllocation* AllocMemory(size_t size);
 	static void FreeMemory(GCAllocation* allocation);
 	static GCAllocation* Mark(GCAllocation* allocation);
-	static GCStats Sweep(Mode mode);
+	static GCStats Sweep(Mode mode, UnreachableVisitor visitor);
 
 	friend class GCObjectList;
 };

@@ -29,6 +29,7 @@
 #include "VM/ScriptCall.h"
 #include "Video/VideoPlayer.h"
 #include <chrono>
+#include <algorithm>
 #include <set>
 
 Engine* engine = nullptr;
@@ -642,13 +643,34 @@ void Engine::LoadEntryMap()
 // Object/memory footprint at every map transition, plus what a working sweep would reclaim.
 // The mark-only collect destroys nothing, so this is safe to run while the mark phase is
 // still being filled in - the "unreachable" number is what tracing has to bring down.
+static std::map<std::string, int> unreachableByClass;
+
+static void CountUnreachable(GCObject* obj)
+{
+	UObject* uobj = dynamic_cast<UObject*>(obj);
+	if (uobj && uobj->Class)
+		unreachableByClass[uobj->Class->Name.ToString()]++;
+	else
+		unreachableByClass["(non-object)"]++;
+}
+
 static void LogGCStats(const std::string& stage, const std::string& mapName)
 {
 	GCStats stats = GC::GetStats();
-	GCStats unreachable = GC::Collect(GC::Mode::MarkOnly);
+	unreachableByClass.clear();
+	GCStats unreachable = GC::Collect(GC::Mode::MarkOnly, &CountUnreachable);
 	LogMessage("GC " + stage + " " + mapName + ": " + std::to_string(stats.numObjects) + " objects, " +
 		std::to_string(stats.memoryUsage / (1024 * 1024)) + " mb, " + std::to_string(unreachable.numObjects) +
 		" unreachable (" + std::to_string(unreachable.memoryUsage / (1024 * 1024)) + " mb)");
+
+	// Which classes dominate tells apart real garbage from something the mark phase cannot reach.
+	Array<std::pair<std::string, int>> byCount(unreachableByClass.begin(), unreachableByClass.end());
+	std::sort(byCount.begin(), byCount.end(), [](const auto& a, const auto& b) { return a.second > b.second; });
+	std::string line;
+	for (size_t i = 0; i < byCount.size() && i < 15; i++)
+		line += (line.empty() ? "" : ", ") + byCount[i].first + " " + std::to_string(byCount[i].second);
+	if (!line.empty())
+		LogMessage("GC unreachable by class: " + line);
 }
 
 void Engine::UnloadMap()
