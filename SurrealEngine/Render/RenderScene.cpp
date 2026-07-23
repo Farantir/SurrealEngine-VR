@@ -85,5 +85,10 @@ void RenderSubsystem::BuildVREyeView(mat4& worldToView, mat4& projection, Coords
 		Coords::Location(cameraLocation).ToMatrix();
 
 	const float n = 1.0f; // matches the near plane used below and by every other Projection in this renderer
-	projection = mat4::frustum(std::tan(CurrentVREye->AngleLeft) * n, std::tan(CurrentVREye->AngleRight) * n, std::tan(CurrentVREye->AngleDown) * n, std::tan(CurrentVREye->AngleUp) * n, n, 32768.0f, handedness::left, clipzrange::zero_positive_w);
+	// Renderdev eye space is y-down (Coords::ViewToRenderDev) but mat4::frustum's bottom/top follow the GL
+	// convention, where bottom lands on the framebuffer's top row - so bottom/top must be -AngleUp/-AngleDown,
+	// not AngleDown/AngleUp. Passing them straight is only invisible when AngleUp == |AngleDown| (e.g. Index);
+	// on headsets with asymmetric vertical FOV it desyncs the rendered image from the FOV EndFrame submits to
+	// the compositor, which warps world geometry as the head turns.
+	projection = mat4::frustum(std::tan(CurrentVREye->AngleLeft) * n, std::tan(CurrentVREye->AngleRight) * n, -std::tan(CurrentVREye->AngleUp) * n, -std::tan(CurrentVREye->AngleDown) * n, n, 32768.0f, handedness::left, clipzrange::zero_positive_w);
 }
