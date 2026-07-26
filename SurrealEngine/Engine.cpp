@@ -1933,6 +1933,13 @@ void Engine::InputCommand(const std::string& commands, EInputKey key, int delta)
 			if (command == "button" && args.size() == 2)
 			{
 				activeInputButtons[args[1]] = key;
+
+				// Set immediately, not just queued for next frame's refresh loop below: a compound binding
+				// like "Button bFire | Fire" also runs the "Fire" exec in this same call, and a charging
+				// weapon's state reads bFire on the very next tick - stale here, it reads as released and
+				// fires instantly instead of charging.
+				if (viewport->Actor())
+					viewport->Actor()->SetBool(args[1], true);
 			}
 			else if (command == "axis" && args.size() == 3)
 			{
