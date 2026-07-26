@@ -137,7 +137,7 @@ public:
 		// button itself is hardcoded to A, not a ButtonCommands slot - see VRWheel.
 		int WheelRadiusCm = 20;
 		int WheelSelectDeadzoneCm = 4;
-		int WheelEntryScalePercent = 6;
+		int WheelEntryScalePercent = 7;
 		// Item-wheel PickupViewMesh entries scale off their own knob, not WheelEntryScalePercent above -
 		// the two shared one setting at first, and a non-weapon pickup's mesh doesn't necessarily model at
 		// the same raw scale a weapon's does (in-headset finding: 6% read right for weapons but still too
