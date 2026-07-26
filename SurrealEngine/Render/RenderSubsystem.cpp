@@ -744,7 +744,7 @@ void RenderSubsystem::DrawVRWheel()
 		if (wheel.IsWeaponWheel())
 			DrawWheelEntryMesh(item, position, wheel.GetPlaneRight(), wheel.GetPlaneUp(), vrSettings.WheelEntryScalePercent, isHighlighted);
 		else if (item->PickupViewMesh())
-			DrawWheelEntryMesh(item, position, wheel.GetPlaneUp(), -wheel.GetPlaneNormal(), vrSettings.WheelItemScalePercent, isHighlighted);
+			DrawWheelEntryMesh(item, position, wheel.GetPlaneUp(), wheel.GetPlaneNormal(), vrSettings.WheelItemScalePercent, isHighlighted);
 		else
 			DrawWheelItemIcon(item, position, isHighlighted);
 	}
@@ -770,12 +770,22 @@ void RenderSubsystem::DrawWheelEntryMesh(UInventory* item, const vec3& position,
 	float savedDrawScale = item->DrawScale();
 	UMesh* savedMesh = item->Mesh();
 	bool savedHidden = item->bHidden();
+	bool savedUnlit = item->bUnlit();
 
 	// A carried weapon's Mesh() is normally its PlayerViewMesh (bring-up assigns that), never the pickup
 	// one - assign it for the duration of the draw regardless of what's currently held.
 	item->Mesh() = viewMesh;
 	item->Location() = position;
 	item->Rotation() = RotatorFromForwardUp(forward, up);
+	// Force unlit for the duration of the draw: GetVertexLight's lit path shades off actor->LightInfo's
+	// nearby-light list, which is built from wherever the item's Location happens to be - and this Location
+	// is an arbitrary point floating in front of the player's hand, not a spot any level designer lit. Real
+	// pickups in the world sit next to placed lights and look fine; the same actor rendered out here can
+	// come out anywhere from dim to fully black depending on what happens to be nearby, which is what made
+	// non-bUnlit items (most weapons and pickups; glow items like the Flare default bUnlit and were never
+	// affected) render black in the wheel. Unlit shading depends only on ambient/ScaleGlow, so it's the same
+	// regardless of where this preview happens to sit in space.
+	item->bUnlit() = true;
 	// Highlighted entries draw a bit larger on top of the base wheel scale, so which one is about to be
 	// picked reads at a glance even before the highlight ring is noticed. scalePercent is the caller's -
 	// weapons and items tune independently (WheelEntryScalePercent/WheelItemScalePercent), since a
@@ -793,6 +803,7 @@ void RenderSubsystem::DrawWheelEntryMesh(UInventory* item, const vec3& position,
 	item->Rotation() = savedRotation;
 	item->DrawScale() = savedDrawScale;
 	item->bHidden() = savedHidden;
+	item->bUnlit() = savedUnlit;
 }
 
 void RenderSubsystem::DrawWheelItemIcon(UInventory* item, const vec3& position, bool highlighted)
@@ -890,9 +901,10 @@ void RenderSubsystem::DrawVRActiveItem()
 {
 	if (!CurrentVREye || !engine->vr || !engine->vr->IsActive() || !engine->vrHands || !engine->viewport)
 		return;
-	// The off hand is busy picking right now - drawing the old selection floating in the same spot as
-	// either wheel would just be clutter, and it's about to change anyway.
-	if (engine->vrWheel && engine->vrWheel->IsOpen())
+	// The off hand is busy picking right now - drawing the old selection floating in the same spot as the
+	// item wheel would just be clutter, and it's about to change anyway. The weapon wheel opens off the
+	// other hand and doesn't touch the item, so it stays visible there.
+	if (engine->vrWheel && engine->vrWheel->IsOpen() && !engine->vrWheel->IsWeaponWheel())
 		return;
 
 	UPlayerPawn* pawn = UObject::TryCast<UPlayerPawn>(engine->viewport->Actor());
@@ -961,10 +973,15 @@ void RenderSubsystem::DrawVRActiveItem()
 	float savedDrawScale = item->DrawScale();
 	UMesh* savedMesh = item->Mesh();
 	bool savedHidden = item->bHidden();
+	bool savedUnlit = item->bUnlit();
 
 	item->Mesh() = viewMesh;
 	item->Location() = position;
 	item->Rotation() = RotatorFromForwardUp(forward, up);
+	// Force unlit for the same reason as DrawWheelEntryMesh: this Location is an arbitrary point at the
+	// off hand, not anywhere a level designer placed a light, so a non-bUnlit item's real scene lighting
+	// here can come out anywhere from dim to fully black depending on what's nearby.
+	item->bUnlit() = true;
 	// PickupViewMesh needs the wheel's item-mesh knob (WheelItemScalePercent), not ItemScalePercent - the
 	// same reason wheel weapons and wheel items don't share a scale either. ItemScalePercent stays for the
 	// (rare) PlayerViewMesh case, which is the mesh convention it was actually calibrated against.
@@ -983,6 +1000,7 @@ void RenderSubsystem::DrawVRActiveItem()
 	item->Rotation() = savedRotation;
 	item->DrawScale() = savedDrawScale;
 	item->bHidden() = savedHidden;
+	item->bUnlit() = savedUnlit;
 }
 
 void RenderSubsystem::DrawVRMenuEyeFrame(vec4 flashScale, vec4 flashFog, bool presentToDesktop)

@@ -172,7 +172,8 @@ void RenderSubsystem::DrawActor(UActor* actor, bool WireFrame, bool ClearZ)
 	vec3 savedLocation;
 	Rotator savedRotation;
 	float savedDrawScale = 0.0f;
-	if (CurrentVREye && engine->vr && engine->vr->IsActive() && engine->vrHands && IsPlayerViewWeapon(actor))
+	bool isPlayerWeapon = CurrentVREye && engine->vr && engine->vr->IsActive() && engine->vrHands && IsPlayerViewWeapon(actor);
+	if (isPlayerWeapon)
 	{
 		const VRHands::HandPose& hand = engine->vrHands->GetHand(VRPlayerInput::WeaponHandIndex());
 		if (hand.Valid)
@@ -225,11 +226,17 @@ void RenderSubsystem::DrawActor(UActor* actor, bool WireFrame, bool ClearZ)
 		}
 	}
 
-	actor->bHidden() = false;
-	VisibleMesh vismesh;
-	if (vismesh.DrawMesh(&MainFrame, actor, WireFrame, false))
-		vismesh.DrawMesh(&MainFrame, actor, WireFrame, true);
-	actor->bHidden() = true;
+	// The weapon wheel opens off the weapon hand to pick a replacement - keep the currently held weapon out
+	// of the way while that's up, the same way DrawVRActiveItem hides the off hand's item for its own wheel.
+	bool hiddenForWheel = isPlayerWeapon && engine->vrWheel && engine->vrWheel->IsOpen() && engine->vrWheel->IsWeaponWheel();
+	if (!hiddenForWheel)
+	{
+		actor->bHidden() = false;
+		VisibleMesh vismesh;
+		if (vismesh.DrawMesh(&MainFrame, actor, WireFrame, false))
+			vismesh.DrawMesh(&MainFrame, actor, WireFrame, true);
+		actor->bHidden() = true;
+	}
 
 	if (weaponOverridden)
 	{
