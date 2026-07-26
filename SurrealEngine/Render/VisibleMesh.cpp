@@ -5,7 +5,6 @@
 #include "RenderSubsystem.h"
 #include "RenderDevice/RenderDevice.h"
 #include "Engine.h"
-#include "VM/Frame.h"
 
 bool VisibleMesh::DrawMesh(VisibleFrame* frame, UActor* actor, bool wireframe, bool translucentPass)
 {
@@ -15,8 +14,6 @@ bool VisibleMesh::DrawMesh(VisibleFrame* frame, UActor* actor, bool wireframe, b
 
 	engine->render->Stats.Actors++;
 	engine->render->UpdateActorLightList(actor);
-
-	DrawDebugInfo(frame, actor);
 
 	mat4 objectToWorld = mat4::translate(actor->Location() + actor->PrePivot()) * Coords::Rotation(actor->Rotation()).ToMatrix() * mat4::scale(actor->DrawScale());
 	mat4 meshToWorld = objectToWorld * mesh->meshToObject;
@@ -979,63 +976,4 @@ bool VisibleMesh::DrawLodMeshFaceDX(VisibleFrame* frame, UActor* actor, UActor* 
 	}
 
 	return needTranslucentPass;
-}
-
-void VisibleMesh::DrawDebugInfo(VisibleFrame* frame, UActor* actor)
-{
-	auto pawn = UObject::TryCast<UPawn>(actor);
-	if (!pawn || !pawn->StateFrame)
-		return;
-
-	vec3 end;
-	if (pawn->StateFrame->LatentState == LatentRunState::MoveTo)
-	{
-		end = pawn->Destination();
-	}
-	else if (pawn->StateFrame->LatentState == LatentRunState::MoveToward && pawn->MoveTarget())
-	{
-		end = pawn->MoveTarget()->Location();
-	}
-	else if (pawn->StateFrame->LatentState == LatentRunState::StrafeTo)
-	{
-		end = pawn->Destination();
-	}
-	else if (pawn->StateFrame->LatentState == LatentRunState::StrafeFacing)
-	{
-		end = pawn->Destination();
-	}
-	else
-	{
-		return;
-	}
-
-	vec3 start = pawn->Location();
-	start.z += pawn->BaseEyeHeight();
-	end.z += pawn->BaseEyeHeight();
-
-	bool visible = pawn->FastTrace(end, start);
-	engine->render->Device->Draw3DLine(
-		&frame->Frame,
-		visible ? vec4(1.0f, 1.0f, 1.0f, 1.0f) : vec4(1.0f, 0.0f, 0.0f, 1.0f),
-		0,
-		start,
-		end);
-
-	if (engine->LaunchInfo.ue1Version > 219)
-	{
-		for (UNavigationPoint* p : pawn->RouteCache())
-		{
-			if (!p)
-				break;
-			end = p->Location();
-			end.z += pawn->BaseEyeHeight();
-			engine->render->Device->Draw3DLine(
-				&frame->Frame,
-				vec4(1.0f, 1.0f, 0.0f, 1.0f),
-				0,
-				start,
-				end);
-			start = end;
-		}
-	}
 }
