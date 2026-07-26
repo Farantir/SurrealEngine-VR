@@ -4,10 +4,13 @@
 #include "RenderDevice/RenderDevice.h"
 #include "Engine.h"
 #include "Math/hsb.h"
+#include <vector>
 
 FTextureInfo RenderSubsystem::GetBrushLightmap(UMover* mover, const Poly& poly, UZoneInfo* zoneActor, UModel* model)
 {
-	// To do: implement mover->bDynamicLightMover()
+	// Movers go through the same GetLightmap() as regular BSP surfaces, which already
+	// relights against any nearby dynamic light every frame - bDynamicLightMover() needs
+	// no separate handling.
 
 	Coords localCoords;
 	localCoords.Origin = -poly.Base;
@@ -42,12 +45,44 @@ FTextureInfo RenderSubsystem::GetLightmap(UModel* model, int lightmapIndex, cons
 	uint64_t cacheID = (((uint64_t)model->LightMap[lightmapIndex].LMCacheID) << 32) | (((uint64_t)ambientID) << 8) | 1;
 
 	auto& lmtexture = Light.lmtextures[cacheID];
+	auto& lmbasecolors = Light.lmbasecolors[cacheID];
+	auto& lmbounds = Light.lmbounds[cacheID];
 	if (!lmtexture)
 	{
 		Light.Builder.Setup(model, coords, lightmapIndex, zoneActor);
 		Light.Builder.AddStaticLights(model, lightmapIndex);
 
+		size_t count = (size_t)Light.Builder.Width() * Light.Builder.Height();
+		lmbasecolors.assign(Light.Builder.Pixels(), Light.Builder.Pixels() + count);
+		Light.Builder.GetWorldBounds(lmbounds.Center, lmbounds.Radius);
+
 		lmtexture = CreateLightmapTexture();
+	}
+
+	// Cheap broad-phase test: only pay for a per-texel relight of this lightmap when a
+	// light that isn't part of its static bake is actually within reach.
+	std::vector<UActor*> dynamicLights;
+	engine->Level->Light.CollectNearbyDynamicLights(lmbounds.Center, lmbounds.Radius, dynamicLights);
+	bool textureChanged = false;
+	if (!dynamicLights.empty())
+	{
+		Light.Builder.CalcGeometry(model, coords, lightmapIndex);
+
+		Array<vec3> colors(lmbasecolors.begin(), lmbasecolors.end());
+		for (UActor* light : dynamicLights)
+			Light.Builder.AddDynamicLight(light, colors.data());
+
+		WriteLightmapPixels(lmtexture.get(), colors.data());
+		lmbounds.Overlayed = true;
+		textureChanged = true;
+	}
+	else if (lmbounds.Overlayed)
+	{
+		// The last dynamic light influencing this surface has moved on - restore the
+		// cached texture back to its static-only colors instead of leaving it stuck lit.
+		WriteLightmapPixels(lmtexture.get(), lmbasecolors.data());
+		lmbounds.Overlayed = false;
+		textureChanged = true;
 	}
 
 	const LightMapIndex& lmindex = model->LightMap[lightmapIndex];
@@ -62,57 +97,47 @@ FTextureInfo RenderSubsystem::GetLightmap(UModel* model, int lightmapIndex, cons
 	texinfo.Pan = { lmindex.PanX, lmindex.PanY };
 	texinfo.UScale = lmindex.UScale;
 	texinfo.VScale = lmindex.VScale;
+	texinfo.bRealtimeChanged = textureChanged;
 	return texinfo;
 }
 
 std::unique_ptr<LightmapTexture> RenderSubsystem::CreateLightmapTexture()
 {
+	auto lmtexture = std::make_unique<LightmapTexture>();
 #if 1 // Float high quality lightmaps
-
-	UnrealMipmap lmmip;
-	lmmip.Width = Light.Builder.Width();
-	lmmip.Height = Light.Builder.Height();
-	lmmip.Data.resize((size_t)lmmip.Width * lmmip.Height * sizeof(vec4));
-
-	vec4* dest = (vec4*)lmmip.Data.data();
-	const vec3* src = Light.Builder.Pixels();
-	int count = lmmip.Width * lmmip.Height;
-	for (int i = 0; i < count; i++)
-	{
-		dest[i] = vec4(src[i], 1.0f);
-	}
-
-	auto lmtexture = std::make_unique<LightmapTexture>();
 	lmtexture->Format = TextureFormat::RGBA32_F;
-	lmtexture->Mip = std::move(lmmip);
-	return lmtexture;
-
+	lmtexture->Mip.Data.resize((size_t)Light.Builder.Width() * Light.Builder.Height() * sizeof(vec4));
 #else // Low quality lightmaps like UE1 got them
-
-	UnrealMipmap lmmip;
-	lmmip.Width = Light.Builder.Width();
-	lmmip.Height = Light.Builder.Height();
-	lmmip.Data.resize((size_t)lmmip.Width * lmmip.Height * 4);
-
-	uint32_t* dest = (uint32_t*)lmmip.Data.data();
-	const vec3* src = Light.Builder.Pixels();
-	int count = lmmip.Width * lmmip.Height;
-	for (int i = 0; i < count; i++)
-	{
-		uint32_t red = (uint32_t)clamp(src[i].r * 127.0f + 0.5f, 0.0f, 127.0f);
-		uint32_t green = (uint32_t)clamp(src[i].g * 127.0f + 0.5f, 0.0f, 127.0f);
-		uint32_t blue = (uint32_t)clamp(src[i].b * 127.0f + 0.5f, 0.0f, 127.0f);
-		uint32_t alpha = 127;
-
-		dest[i] = (alpha << 24) | (red << 16) | (green << 8) | blue;
-	}
-
-	auto lmtexture = std::make_unique<LightmapTexture>();
 	lmtexture->Format = TextureFormat::BGRA8_LM;
-	lmtexture->Mip = std::move(lmmip);
-	return lmtexture;
-
+	lmtexture->Mip.Data.resize((size_t)Light.Builder.Width() * Light.Builder.Height() * 4);
 #endif
+	lmtexture->Mip.Width = Light.Builder.Width();
+	lmtexture->Mip.Height = Light.Builder.Height();
+	WriteLightmapPixels(lmtexture.get(), Light.Builder.Pixels());
+	return lmtexture;
+}
+
+void RenderSubsystem::WriteLightmapPixels(LightmapTexture* texture, const vec3* colors)
+{
+	int count = texture->Mip.Width * texture->Mip.Height;
+	if (texture->Format == TextureFormat::RGBA32_F)
+	{
+		vec4* dest = (vec4*)texture->Mip.Data.data();
+		for (int i = 0; i < count; i++)
+			dest[i] = vec4(colors[i], 1.0f);
+	}
+	else // BGRA8_LM
+	{
+		uint32_t* dest = (uint32_t*)texture->Mip.Data.data();
+		for (int i = 0; i < count; i++)
+		{
+			uint32_t red = (uint32_t)clamp(colors[i].r * 127.0f + 0.5f, 0.0f, 127.0f);
+			uint32_t green = (uint32_t)clamp(colors[i].g * 127.0f + 0.5f, 0.0f, 127.0f);
+			uint32_t blue = (uint32_t)clamp(colors[i].b * 127.0f + 0.5f, 0.0f, 127.0f);
+			uint32_t alpha = 127;
+			dest[i] = (alpha << 24) | (red << 16) | (green << 8) | blue;
+		}
+	}
 }
 
 void RenderSubsystem::UpdateActorLightList(UActor* actor)
@@ -141,7 +166,7 @@ vec3 RenderSubsystem::GetVertexLight(UActor* actor, const vec3& location, const 
 			if (attenuation > 0.0f)
 			{
 				float angleAttenuation = std::abs(dot(normalize(L), normal));
-				vec3 lightcolor = hsbtorgb(light->LightHue(), light->LightSaturation(), light->LightBrightness());
+				vec3 lightcolor = hsbtorgb(light->LightHue(), light->LightSaturation(), light->GetEffectiveLightBrightness());
 				color += lightcolor * (attenuation * angleAttenuation);
 			}
 		}

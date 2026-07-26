@@ -3,6 +3,7 @@
 #include "Math/vec.h"
 #include <unordered_map>
 #include <list>
+#include <vector>
 
 class ULevel;
 class UActor;
@@ -17,6 +18,11 @@ public:
 	void SetLevel(ULevel* level);
 	void AddLight(UActor* light);
 	void RemoveLight(UActor* light);
+
+	// Lights that must be relit every frame rather than baked into a surface's static
+	// lightmap: anything spawned during gameplay, or with a LightType that animates
+	// brightness over time. Usually a short list, so a linear scan per surface is fine.
+	void CollectNearbyDynamicLights(const vec3& center, float radius, std::vector<UActor*>& result) const;
 
 private:
 	static ivec3 GetStartExtents(const vec3& location, const vec3& extents)
@@ -69,6 +75,7 @@ private:
 
 	ULevel* Level = nullptr;
 	std::unordered_map<uint32_t, std::list<UActor*>> LightActors;
+	std::list<UActor*> DynamicLights;
 
 	inline static std::list<UActor*> emptyList;
 	inline static int CheckCounter = 0;

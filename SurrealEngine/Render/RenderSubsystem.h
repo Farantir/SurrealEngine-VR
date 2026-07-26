@@ -167,6 +167,7 @@ private:
 	void DrawVRActiveItem();
 
 	std::unique_ptr<LightmapTexture> CreateLightmapTexture();
+	void WriteLightmapPixels(LightmapTexture* texture, const vec3* colors);
 
 	void UpdateFogmapTexture(uint32_t* texels, UModel* model, const Coords& mapCoords, int lightMap, UZoneInfo* zoneActor);
 
@@ -233,9 +234,18 @@ private:
 		FSceneNode Frame;
 	} Canvas;
 
+	struct LightmapBounds
+	{
+		vec3 Center = { 0.0f };
+		float Radius = 0.0f;
+		bool Overlayed = false; // true while the cached texture holds a dynamic light overlay on top of lmbasecolors
+	};
+
 	struct
 	{
 		std::map<uint64_t, std::unique_ptr<LightmapTexture>> lmtextures;
+		std::map<uint64_t, Array<vec3>> lmbasecolors; // Static-only lit colors, kept around so a dynamic light overlay can be recomputed from it each frame without redoing the static bake.
+		std::map<uint64_t, LightmapBounds> lmbounds;
 		std::map<uint64_t, std::pair<int, std::unique_ptr<LightmapTexture>>> fogtextures;
 		Array<UActor*> FogBalls;
 		LightmapBuilder Builder;

@@ -62,6 +62,9 @@ UActor* UActor::Spawn(UClass* SpawnClass, std::optional<UActor*> SpawnOwner, std
 	actor->Index = (int)XLevel()->Actors.size();
 	XLevel()->Actors.push_back(actor);
 	XLevel()->Collision.AddToCollision(actor);
+	// Actors spawned during gameplay can never be part of a surface's baked static
+	// lightmap (that was compiled before the level ran), so they always need dynamic lighting.
+	actor->Light.SpawnedAtRuntime = true;
 	XLevel()->Light.AddLight(actor);
 
 	actor->SetOwner(SpawnOwner.has_value() && SpawnOwner.value() ? *SpawnOwner : nullptr);
@@ -415,6 +418,18 @@ void UActor::Tick(float elapsed)
 	}
 
 	TickPhysics(elapsed);
+
+	// Light actors are only added to/removed from the light hash on move (SetLocation/TryMove).
+	// Catch the case where a script turns a light on/off in place (e.g. LightType/LightBrightness
+	// written directly) so it still gets (de)registered.
+	bool lightActive = LightType() != LT_None && LightBrightness() > 0;
+	if (lightActive != Light.Inserted)
+	{
+		if (lightActive)
+			XLevel()->Light.AddLight(this);
+		else
+			XLevel()->Light.RemoveLight(this);
+	}
 
 	if (TimerRate() > 0.0f) // Role() == ROLE_Authority && RemoteRole() == ROLE_AutonomousProxy
 	{
@@ -1407,6 +1422,93 @@ void UActor::PhysLanded(UActor* hitActor, const vec3& hitNormal)
 			SetBase(hitActor, true);
 			Velocity() = vec3(0.0f);
 		}
+	}
+}
+
+uint8_t UActor::GetEffectiveLightBrightness()
+{
+	uint8_t base = LightBrightness();
+	uint8_t type = LightType();
+
+	// LightPeriod/LightPhase are in 1/64th of a second, matching other UE1 byte time fields.
+	// Approximated from community documentation of the original light types; needs visual tuning.
+	float period = std::max(LightPeriod(), (uint8_t)1) * (1.0f / 64.0f);
+	float phase = LightPhase() * (1.0f / 64.0f);
+	float t = Level()->TimeSeconds() + phase;
+	float cycle = std::fmod(t / period, 1.0f);
+	if (cycle < 0.0f)
+		cycle += 1.0f;
+
+	float multiplier = 1.0f;
+	switch (type)
+	{
+	case LT_Pulse:
+		multiplier = 0.5f + 0.5f * std::sin(radians(cycle * 360.0f));
+		break;
+	case LT_SubtlePulse:
+		multiplier = 0.85f + 0.15f * std::sin(radians(cycle * 360.0f));
+		break;
+	case LT_Blink:
+		multiplier = (cycle < 0.5f) ? 1.0f : 0.0f;
+		break;
+	case LT_Strobe:
+		multiplier = (cycle < 0.1f) ? 1.0f : 0.0f;
+		break;
+	case LT_Flicker:
+	{
+		// A light with a bad ballast, not one being switched on and off: mostly steady, with
+		// occasional brief dips that never reach anywhere near dark. Random keyframes
+		// (FlickerKeyframeRate a second) mostly land at full brightness - only the bottom
+		// FlickerDipChance slice of the noise range dips at all, down to FlickerFloor at the
+		// deepest - and are smoothstep-interpolated so a dip fades in/out instead of snapping.
+		constexpr float FlickerKeyframeRate = 3.0f;
+		constexpr float FlickerDipChance = 0.2f;
+		constexpr float FlickerFloor = 0.6f;
+
+		auto hashNoise = [](uint32_t seed)
+		{
+			uint32_t h = seed * 2654435761u;
+			h ^= h >> 15;
+			h *= 2246822519u;
+			h ^= h >> 13;
+			return h / (float)0xffffffffu;
+		};
+		auto keyframeBrightness = [&](uint32_t key)
+		{
+			float n = hashNoise(key);
+			if (n > FlickerDipChance)
+				return 1.0f;
+			return FlickerFloor + (1.0f - FlickerFloor) * (n / FlickerDipChance);
+		};
+
+		float t2 = t * FlickerKeyframeRate;
+		float frac = t2 - std::floor(t2);
+		uint32_t keyA = (uint32_t)std::floor(t2);
+		float smooth = frac * frac * (3.0f - 2.0f * frac);
+		multiplier = keyframeBrightness(keyA) * (1.0f - smooth) + keyframeBrightness(keyA + 1) * smooth;
+		break;
+	}
+	default:
+		// LT_None, LT_Steady, LT_BackdropLight and the texture palette types
+		// don't animate brightness.
+		break;
+	}
+
+	return (uint8_t)clamp(base * multiplier, 0.0f, 255.0f);
+}
+
+bool UActor::HasAnimatedLightBrightness()
+{
+	switch (LightType())
+	{
+	case LT_Pulse:
+	case LT_SubtlePulse:
+	case LT_Blink:
+	case LT_Flicker:
+	case LT_Strobe:
+		return true;
+	default:
+		return false;
 	}
 }
 

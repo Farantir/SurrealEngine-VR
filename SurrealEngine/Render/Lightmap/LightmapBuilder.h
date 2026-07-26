@@ -8,6 +8,7 @@ class BspSurface;
 class LightMapIndex;
 class UModel;
 class UZoneInfo;
+class UActor;
 class Coords;
 struct Poly;
 
@@ -16,6 +17,12 @@ class LightmapBuilder
 public:
 	void Setup(UModel* model, const Coords& mapCoords, int lightMap, UZoneInfo* zoneActor);
 	void AddStaticLights(UModel* model, int lightMap);
+
+	// Just the per-texel world positions/normal, without resetting the lit colors to
+	// ambient. Used to relight an already-cached lightmap with a dynamic light overlay.
+	void CalcGeometry(UModel* model, const Coords& mapCoords, int lightMap);
+	void GetWorldBounds(vec3& outCenter, float& outRadius) const;
+	void AddDynamicLight(UActor* light, vec3* colors);
 
 	int Width() const { return width; }
 	int Height() const { return height; }
@@ -38,4 +45,5 @@ private:
 	Shadowmap Shadow;
 	LightEffect Effect;
 	Array<float> illuminationmap;
+	Array<float> unshadowedmap;
 };

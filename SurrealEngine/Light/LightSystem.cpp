@@ -10,12 +10,17 @@
 void LightSystem::UpdateLightList(UActor* actor)
 {
 	vec3 location = actor->BspInfo.BoundingBox.center();
+	float time = actor->Level() ? actor->Level()->TimeSeconds() : 0.0f;
 
-	if (!actor->LightInfo.NeedsUpdate && actor->LightInfo.Location == location)
+	// Rescan periodically even for a stationary actor, since a light that is
+	// itself moving or blinking can enter/leave range without this actor moving.
+	constexpr float RescanInterval = 0.25f;
+	if (!actor->LightInfo.NeedsUpdate && actor->LightInfo.Location == location && time < actor->LightInfo.NextRescanTime)
 		return;
 
 	actor->LightInfo.NeedsUpdate = false;
 	actor->LightInfo.Location = location;
+	actor->LightInfo.NextRescanTime = time + RescanInterval;
 	actor->LightInfo.LightList.clear();
 
 	if (actor->bUnlit())
@@ -39,7 +44,12 @@ void LightSystem::UpdateLightList(UActor* actor)
 						if (light->Light.CheckCounter != checkCounter)
 						{
 							light->Light.CheckCounter = checkCounter;
-							if (!light->bCorona() && !light->bSpecialLit())
+							// bCorona only controls drawing a lens-flare sprite for the light actor
+							// itself (see VisibleCorona.cpp) - it doesn't mean the actor isn't a real
+							// light source, so it must not be excluded here (this is why Flares never
+							// illuminated their surroundings). bSpecialLit is a genuine lighting-channel
+							// flag and stays excluded.
+							if (!light->bSpecialLit())
 							{
 								float radius = light->WorldLightRadius();
 								vec3 L = light->Location() - location;
@@ -88,6 +98,12 @@ void LightSystem::AddLight(UActor* light)
 				}
 			}
 		}
+
+		if (light->Light.SpawnedAtRuntime || light->HasAnimatedLightBrightness())
+		{
+			light->Light.IsDynamicList = true;
+			DynamicLights.push_back(light);
+		}
 	}
 }
 
@@ -117,6 +133,23 @@ void LightSystem::RemoveLight(UActor* light)
 			}
 		}
 
+		if (light->Light.IsDynamicList)
+		{
+			DynamicLights.remove(light);
+			light->Light.IsDynamicList = false;
+		}
+
 		light->Light.Inserted = false;
+	}
+}
+
+void LightSystem::CollectNearbyDynamicLights(const vec3& center, float radius, std::vector<UActor*>& result) const
+{
+	for (UActor* light : DynamicLights)
+	{
+		float range = radius + light->WorldLightRadius();
+		vec3 L = light->Location() - center;
+		if (dot(L, L) < range * range)
+			result.push_back(light);
 	}
 }

@@ -6,7 +6,7 @@
 #include "RenderDevice/RenderDevice.h"
 #include "Math/hsb.h"
 
-void LightmapBuilder::Setup(UModel* model, const Coords& mapCoords, int lightMap, UZoneInfo* zoneActor)
+void LightmapBuilder::CalcGeometry(UModel* model, const Coords& mapCoords, int lightMap)
 {
 	const LightMapIndex& lmindex = model->LightMap[lightMap];
 
@@ -24,8 +24,15 @@ void LightmapBuilder::Setup(UModel* model, const Coords& mapCoords, int lightMap
 		lightcolors.resize(size);
 	if (illuminationmap.size() < size)
 		illuminationmap.resize(size);
+	if (unshadowedmap.size() < size)
+		unshadowedmap.resize(size, 1.0f);
 
 	CalcWorldLocations(mapCoords, lmindex);
+}
+
+void LightmapBuilder::Setup(UModel* model, const Coords& mapCoords, int lightMap, UZoneInfo* zoneActor)
+{
+	CalcGeometry(model, mapCoords, lightMap);
 
 	// Initialize lightmap with the ambient color
 
@@ -41,6 +48,42 @@ void LightmapBuilder::Setup(UModel* model, const Coords& mapCoords, int lightMap
 	//bool isTranslucent = (surface.PolyFlags & PF_Translucent) == PF_Translucent;
 }
 
+void LightmapBuilder::GetWorldBounds(vec3& outCenter, float& outRadius) const
+{
+	size_t count = (size_t)width * height;
+	vec3 mn = points[0];
+	vec3 mx = points[0];
+	for (size_t i = 1; i < count; i++)
+	{
+		const vec3& p = points[i];
+		mn.x = std::min(mn.x, p.x); mn.y = std::min(mn.y, p.y); mn.z = std::min(mn.z, p.z);
+		mx.x = std::max(mx.x, p.x); mx.y = std::max(mx.y, p.y); mx.z = std::max(mx.z, p.z);
+	}
+	outCenter = (mn + mx) * 0.5f;
+	outRadius = length(mx - mn) * 0.5f;
+}
+
+void LightmapBuilder::AddDynamicLight(UActor* light, vec3* colors)
+{
+	size_t count = (size_t)width * height;
+
+	// Dynamic lights are not shadow tested against the world (there is no runtime BSP
+	// shadow caster) - this matches the original engine's own dynamic lights, which did
+	// not fully shadow through geometry either.
+	Effect.Run(light, width, height, WorldLocations(), base, WorldNormal(), unshadowedmap.data(), illuminationmap.data());
+
+	vec3 lightcolor = hsbtorgb(light->LightHue(), light->LightSaturation(), light->GetEffectiveLightBrightness());
+
+	const float* src = illuminationmap.data();
+	for (size_t i = 0; i < count; i++)
+	{
+		vec3 color = src[i] * lightcolor;
+		colors[i].r = std::min(colors[i].r + color.r, 1.0f);
+		colors[i].g = std::min(colors[i].g + color.g, 1.0f);
+		colors[i].b = std::min(colors[i].b + color.b, 1.0f);
+	}
+}
+
 void LightmapBuilder::AddStaticLights(UModel* model, int lightMap)
 {
 	size_t count = (size_t)width * height;
@@ -52,7 +95,10 @@ void LightmapBuilder::AddStaticLights(UModel* model, int lightMap)
 		for (int lightindex = 0; lightlist[lightindex] != nullptr; lightindex++)
 		{
 			UActor* light = lightlist[lightindex];
-			if (light->LightType() != LT_None && light->LightBrightness() > 0)
+			// Lights with an animated LightType are handled every frame as a dynamic
+			// overlay instead (see RenderSubsystem::GetLightmap), since baking a single
+			// static brightness for them would never match their live intensity.
+			if (light->LightType() != LT_None && light->LightBrightness() > 0 && !light->HasAnimatedLightBrightness())
 			{
 				Shadow.Load(model, lightMap, lightindex);
 				Effect.Run(light, width, height, WorldLocations(), base, WorldNormal(), Shadow.Pixels(), illuminationmap.data());

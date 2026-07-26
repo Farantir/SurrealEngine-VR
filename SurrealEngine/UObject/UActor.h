@@ -526,9 +526,11 @@ public:
 	struct
 	{
 		bool Inserted = false;
+		bool IsDynamicList = false;
 		vec3 Location = { 0.0f };
 		float Radius = 0.0f;
 		int CheckCounter = -1;
+		bool SpawnedAtRuntime = false;
 	} Light;
 
 	// Lights touching this actor
@@ -536,6 +538,7 @@ public:
 	{
 		bool NeedsUpdate = true;
 		vec3 Location = vec3(0.0f);
+		float NextRescanTime = 0.0f;
 		Array<UActor*> LightList;
 	} LightInfo;
 
@@ -591,6 +594,8 @@ public:
 	float WorldSoundRadius() { return ((int)SoundRadius() + 1) * 25.0f; }
 	float WorldVolumetricRadius() { return ((int)VolumeRadius() + 1) * 25.0f; }
 	float WorldLightRadius() { return ((int)LightRadius() + 1) * 25.0f; }
+	uint8_t GetEffectiveLightBrightness();
+	bool HasAnimatedLightBrightness();
 
 	vec3& Acceleration() { return Value<vec3>(PropOffsets_Actor.Acceleration); }
 	uint8_t& AmbientGlow() { return Value<uint8_t>(PropOffsets_Actor.AmbientGlow); }
