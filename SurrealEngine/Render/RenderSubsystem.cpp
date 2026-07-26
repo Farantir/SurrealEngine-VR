@@ -873,37 +873,17 @@ void RenderSubsystem::DrawWheelItemIcon(UInventory* item, const vec3& position, 
 
 void RenderSubsystem::DrawWheelHighlightRing(const VRWheel& wheel)
 {
-	const auto& vrSettings = LauncherSettings::Get().VR;
 	const float cmToUU = 0.01f * MetersToUnrealUnits;
-	const float radius = vrSettings.WheelRadiusCm * cmToUU;
 
-	const vec4 ringColor(0.9f, 0.9f, 0.9f, 1.0f);
-	const int segments = 32;
-	vec3 previous = wheel.GetCenter() + wheel.GetPlaneUp() * radius;
-	for (int i = 1; i <= segments; i++)
-	{
-		float angle = radians(360.0f * i / segments);
-		vec3 next = wheel.GetCenter() + (wheel.GetPlaneUp() * std::cos(angle) + wheel.GetPlaneRight() * std::sin(angle)) * radius;
-		Device->Draw3DLine(&MainFrame.Frame, ringColor, LINE_DepthCued, previous, next);
-		previous = next;
-	}
-
-	// A small cross at the centre, so "hand centred = release cancels" reads even before any entry lights up.
+	// Just a small cross at the centre, so "hand centred = release cancels" reads even before any entry
+	// lights up - the outer ring and the spoke to the highlighted entry were dropped as visual clutter,
+	// the entries themselves (position and any per-entry highlight) already carry that information.
+	const vec4 markerColor(0.9f, 0.9f, 0.9f, 1.0f);
 	const float markerSize = 1.0f * cmToUU;
-	Device->Draw3DLine(&MainFrame.Frame, ringColor, LINE_DepthCued,
+	Device->Draw3DLine(&MainFrame.Frame, markerColor, LINE_DepthCued,
 		wheel.GetCenter() - wheel.GetPlaneRight() * markerSize, wheel.GetCenter() + wheel.GetPlaneRight() * markerSize);
-	Device->Draw3DLine(&MainFrame.Frame, ringColor, LINE_DepthCued,
+	Device->Draw3DLine(&MainFrame.Frame, markerColor, LINE_DepthCued,
 		wheel.GetCenter() - wheel.GetPlaneUp() * markerSize, wheel.GetCenter() + wheel.GetPlaneUp() * markerSize);
-
-	// A brighter spoke from centre out to the highlighted entry's slot, so which one release will commit
-	// is unambiguous at a glance.
-	int highlighted = wheel.GetHighlighted();
-	if (highlighted >= 0 && highlighted < (int)wheel.GetEntries().size())
-	{
-		const vec4 highlightColor(1.0f, 0.85f, 0.2f, 1.0f);
-		vec3 dir = wheel.GetEntries()[highlighted].SlotForward;
-		Device->Draw3DLine(&MainFrame.Frame, highlightColor, LINE_DepthCued, wheel.GetCenter(), wheel.GetCenter() + dir * radius);
-	}
 }
 
 void RenderSubsystem::DrawVRActiveItem()
