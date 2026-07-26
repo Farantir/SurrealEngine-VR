@@ -661,8 +661,8 @@ void RenderSubsystem::DrawVRCrosshair()
 	float sizeScale = LauncherSettings::Get().VR.CrosshairSizePercent * 0.01f;
 	float radius = CrosshairApparentSizeK * sizeScale * length(hitPoint - eyePosition);
 
-	// Nudged toward the eye along the aim so it doesn't z-fight the surface it sits on; LINE_DepthCued below
-	// still occludes it properly if the surface is around a corner.
+	// Nudged toward the eye along the aim so it doesn't sit exactly on the surface; drawn with LINE_None
+	// (no depth test) below so it always reads on top instead of clipping into the geometry it marks.
 	vec3 drawCenter = hitPoint - ray.Direction * (SurfaceOffsetCm * cmToUU);
 
 	// Billboarded to the eye's true facing (VisibleFrame::HeadLocalToWorld), not the surface normal
@@ -678,7 +678,7 @@ void RenderSubsystem::DrawVRCrosshair()
 	{
 		float angle = radians(360.0f * i / Segments);
 		vec3 next = drawCenter + (right * std::cos(angle) + up * std::sin(angle)) * radius;
-		Device->Draw3DLine(&MainFrame.Frame, CrosshairColor, LINE_DepthCued, previous, next);
+		Device->Draw3DLine(&MainFrame.Frame, CrosshairColor, LINE_None, previous, next);
 		previous = next;
 	}
 
@@ -688,14 +688,14 @@ void RenderSubsystem::DrawVRCrosshair()
 	{
 		vec3 from = drawCenter + axis * radius;
 		vec3 to = drawCenter + axis * radius * (1.0f + TickLengthFraction);
-		Device->Draw3DLine(&MainFrame.Frame, CrosshairColor, LINE_DepthCued, from, to);
+		Device->Draw3DLine(&MainFrame.Frame, CrosshairColor, LINE_None, from, to);
 	}
 
 	// A small centre dot - a tiny cross, since Draw3DLine has no point primitive - so the exact impact
 	// point reads at a glance instead of just "somewhere inside this ring".
 	float dotRadius = radius * CenterDotRadiusFraction;
-	Device->Draw3DLine(&MainFrame.Frame, CrosshairColor, LINE_DepthCued, drawCenter - right * dotRadius, drawCenter + right * dotRadius);
-	Device->Draw3DLine(&MainFrame.Frame, CrosshairColor, LINE_DepthCued, drawCenter - up * dotRadius, drawCenter + up * dotRadius);
+	Device->Draw3DLine(&MainFrame.Frame, CrosshairColor, LINE_None, drawCenter - right * dotRadius, drawCenter + right * dotRadius);
+	Device->Draw3DLine(&MainFrame.Frame, CrosshairColor, LINE_None, drawCenter - up * dotRadius, drawCenter + up * dotRadius);
 
 	Device->SetSceneNode(&Canvas.Frame);
 }
