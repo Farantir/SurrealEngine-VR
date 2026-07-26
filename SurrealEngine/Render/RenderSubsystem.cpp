@@ -572,45 +572,32 @@ void RenderSubsystem::DrawVRHands()
 	// so this has to happen before the lines and after DrawScene() has set its own.
 	Device->SetSceneNode(&frame);
 
-	// An outline ball rather than a solid one: Draw3DLine is the only primitive here that needs neither a
-	// texture nor a light, so three great circles give an unlit hand that is see-through for free - the
-	// player can see the button they are reaching for straight through their own hand. LINE_DepthCued so
-	// the hand goes behind the wall it is pushed into instead of hovering on top of the world.
-	const int segments = 16;
-	const float handRadius = VRHands::HandRadius(); // the drawn ball is exactly the collider (see VRHands)
+	// A V/chevron rather than a ball, pushed 10cm out along the aim ray: the space right around the aim
+	// pose stays clear for the item/weapon mesh (phase 4) instead of a sphere sitting on top of it.
+	const float cmToUU = 0.01f * MetersToUnrealUnits;
+	const float markerOffsetUU = 10.0f * cmToUU;
+	const float handRadius = VRHands::HandRadius(); // kept only to size the marker like the old ball was
+	const float armLength = handRadius * 1.3f * 0.15f;
+	const float armSpread = handRadius * 1.3f * 0.15f;
 	for (int hand = 0; hand < VRSubsystem::HandCount; hand++)
 	{
 		const VRHands::HandPose& pose = engine->vrHands->GetHand(hand);
 		if (!pose.Valid)
 			continue;
 
-		// Left and right are told apart by colour, since the balls are otherwise identical and the player
+		// Left and right are told apart by colour, since the marker is otherwise identical and the player
 		// has no other cue as to which hand the game thinks is where.
 		vec4 color = (hand == VRSubsystem::HandLeft) ? vec4(0.35f, 0.75f, 1.0f, 1.0f) : vec4(1.0f, 0.65f, 0.25f, 1.0f);
 
-		// Draw the great circles in the controller's own frame, not world axes. A sphere is rotationally
-		// symmetric, so world-aligned rings look identical whichever way the controller is turned - the ball
-		// never appeared to rotate at all. Rings in the local frame turn with the controller, and the
-		// forward spoke below makes which way it points unmistakable.
-		const vec3 basis[3] = { pose.Forward, pose.Right, pose.Up };
-		for (int axis = 0; axis < 3; axis++)
-		{
-			vec3 u = basis[(axis + 1) % 3];
-			vec3 v = basis[(axis + 2) % 3];
+		// Tip is the point of the V, furthest along the aim direction; the two arms fold back towards the
+		// hand so the shape reads as pointing forward rather than as a generic chevron.
+		vec3 apex = pose.Position + pose.Forward * markerOffsetUU;
+		vec3 tip = apex + pose.Forward * armLength;
+		vec3 left = apex - pose.Forward * (armLength * 0.5f) - pose.Right * armSpread;
+		vec3 right = apex - pose.Forward * (armLength * 0.5f) + pose.Right * armSpread;
 
-			vec3 previous = pose.Position + u * handRadius;
-			for (int i = 1; i <= segments; i++)
-			{
-				float angle = radians(360.0f * i / segments);
-				vec3 next = pose.Position + (u * std::cos(angle) + v * std::sin(angle)) * handRadius;
-				Device->Draw3DLine(&frame, color, LINE_DepthCued, previous, next);
-				previous = next;
-			}
-		}
-
-		// A stub poking out the front of the ball, so the controller's facing reads at a glance instead of
-		// having to be inferred from the ring pattern.
-		Device->Draw3DLine(&frame, color, LINE_DepthCued, pose.Position, pose.Position + pose.Forward * (handRadius * 1.6f));
+		Device->Draw3DLine(&frame, color, LINE_DepthCued, tip, left);
+		Device->Draw3DLine(&frame, color, LINE_DepthCued, tip, right);
 	}
 }
 
