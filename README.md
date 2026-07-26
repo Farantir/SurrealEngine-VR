@@ -1,6 +1,42 @@
 ![SEBANNER](Resources/surreal-engine-banner.png)
 
-# Welcome to Surreal Engine!
+# What is this?
+
+this is a fully working (Roomscale) VR Implementation for the SurrealEngine Project
+
+VR is only implemented in engine, so this Implementation will not get further feature whise (for theat the games Unrealscript Would need to be changed)
+It does come with a giant benefit tho: All games that are supported by SurrealEngine should also be playable wiht this build in VR, since no game specific canges are made.
+
+I only tested the GOG versions of Unreal and Unreal Tournement GOTY, because i don't own another UE1 game
+
+I also only tested with the Valve Index HMD
+
+Consider the whole thing Experimental. SurrealEngine is not in a state yet,
+where a VR Implementation is really sensible.
+The SurrealEngine team is also not affiliated with this project.
+
+In the future, when SurrealEngine is more finalized, there might be an official VR implementaion
+
+## Features
+
+- Stereo rendering and 6DOF Headtracking
+- Main/Pause menu controllable with "laserpointer" controls
+- Main/Pause menu can be opend with the contoller
+- handtracked Weapons and items - booth are trigger aktivated on there respective hand
+- Head or hand based locomotion direction
+- Halfe Live Alex style Item and Weapon quickselect Wheel
+- UI decoupled from stereo view - lives on your fore arm instead
+- almost everything is configurable in launcher settings
+- triggers, movers and items can be picked up/activated by touching them with your hand (no need to be rude and bump into them)
+
+## Future Development
+
+SurrealEngine is still under active Development and not feature complete.
+This implementation will be keept up to date with the original SurrealEngine.
+I will also add some polish to the current VR implementaion, like Improving the Visuals of the weapon/item wheel and updating the contrller models
+
+
+# Oringinal SurrealEngine Readme
 
 Surreal Engine is a project that aims to reimplement Unreal Engine 1; currently focused on making Unreal (Gold) and Unreal Tournament (UT99) playable. The scope of this project might expand to cover more UE1 games in the future.
 
