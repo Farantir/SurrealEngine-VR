@@ -153,7 +153,6 @@ OpenXR action changes cannot be exercised without the Index.
 - **Firing with the hand against a wall** can spawn the projectile clipped, since `FireOffset` puts the shot
   origin at the hand.
 - The HUD tablet is always present on the forearm; it is not selectable or dismissable.
-- Charging weapons (dispersion pistol, impact hammer, rocket launcher) mishandle held-trigger charge-up.
 
 Open defects are tracked in `Bugtracker.md`. The phase-by-phase build history — including the in-headset
 tuning rounds behind each constant above — is in the git history of `VR Build checklist.md` and

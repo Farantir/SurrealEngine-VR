@@ -82,9 +82,12 @@ that inventory actually transfers.
 
 **Severity S2.** How a held trigger turns into a shot.
 
+**Status 2026-07-26:** BUG-010 fixed and user-confirmed in-headset (UT99 Impact Hammer and Rocket Launcher,
+both fire and alt-fire). BUG-012 remains open.
+
 | ID | Src | Sev | Defect |
 | --- | --- | --- | --- |
-| BUG-010 | BT, VR | S2 | Charging weapons (Dispersion Pistol, Impact Hammer, Rocket Launcher) mishandle the held trigger: the Rocket Launcher fires one rocket immediately and only then starts charging. Same on alt-fire. |
+| BUG-010 | BT, VR | S2 | ~~Charging weapons (Dispersion Pistol, Impact Hammer, Rocket Launcher) mishandle the held trigger: the Rocket Launcher fires one rocket immediately and only then starts charging. Same on alt-fire.~~ **FIXED (2026-07-26)** — `Engine::InputCommand`'s `"Button <name>"` case only queued the property for the *next* frame's refresh loop in `Engine::UpdateInput`, so a fresh press's `bFire`/`bAltFire` was still stale for the level tick that follows later the same frame. A charging weapon's own state polls that flag on its very first `Tick()` after `GotoState`, read it as already released, and fired instantly instead of charging. VR hit this because `VRPlayerInput::Tick` (where a controller press is detected) runs after that frame's refresh loop; keyboard dodged it by chance, since key events land earlier in the frame. Fixed by setting the property immediately when the button is registered, not just queuing it. **User-confirmed in-headset.** |
 | BUG-012 | VR | S3 | Firing with the hand against a wall can spawn the projectile clipped, because `FireOffset` puts the shot origin at the hand. |
 
 ## WP-3 — Movers, collision and physics
