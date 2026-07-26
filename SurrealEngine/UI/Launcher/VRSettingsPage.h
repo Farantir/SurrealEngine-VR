@@ -122,8 +122,9 @@ private:
 	TextLabel* ControlsColumnLeft = nullptr;
 	TextLabel* ControlsColumnRight = nullptr;
 	TextLabel* ButtonLabel[VRSubsystem::ButtonCount] = {};
-	// [hand][button] in VRSubsystem::Button order; free-text commands, empty means unbound.
-	LineEdit* ButtonCommand[VRSubsystem::HandCount][VRSubsystem::ButtonCount] = {};
+	// [hand][button] in VRSubsystem::Button order. Index into the fixed option list built in
+	// VRSettingsPage.cpp (ButtonCommandOptions); index 0 is always "Unbound".
+	Dropdown* ButtonCommand[VRSubsystem::HandCount][VRSubsystem::ButtonCount] = {};
 
 	PushButton* ResetButton = nullptr;
 };

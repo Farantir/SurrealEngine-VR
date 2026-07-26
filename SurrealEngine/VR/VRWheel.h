@@ -46,7 +46,8 @@ public:
 	const vec3& GetPlaneRight() const { return PlaneRight; }
 	const vec3& GetPlaneUp() const { return PlaneUp; }
 
-	// Called on A press for `hand`. Closes whatever wheel was already open (without committing it - a
+	// Called on press of whichever button is bound to "OpenWeaponWheel"/"OpenItemWheel" for `hand` (see
+	// VRPlayerInput::UpdateButtons). Closes whatever wheel was already open (without committing it - a
 	// single Open+Hand state makes the two wheels mutually exclusive for free), then opens the requested
 	// one if the pawn actually carries anything of the relevant kind and the hand is tracked. Silently
 	// does nothing otherwise (no pawn, menu up, untracked hand, empty inventory of that kind) - the press
@@ -59,7 +60,7 @@ public:
 	// Force-closes if the pawn/level/menu state stops being valid for a wheel to be up.
 	void Tick(UPlayerPawn* pawn);
 
-	// Called on A release for `hand`. A no-op unless a wheel opened by that same hand is currently open
+	// Called on release of that same button for `hand`. A no-op unless a wheel opened by that same hand is currently open
 	// (guards the case where a same-frame OpenFor on the other hand already replaced it). Commits the
 	// highlighted entry - direct UWeapon*/UInventory* object, never the InventoryGroup byte - or cancels
 	// if nothing is highlighted (centred release), then closes either way.

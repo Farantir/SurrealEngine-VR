@@ -529,10 +529,9 @@ bool OpenXRSubsystem::InitSession(VkInstance instance, VkPhysicalDevice physical
 	// SteamVR's OpenXR runtime can recommend a per-eye size far larger than the headset's native
 	// panel resolution (e.g. 2168x2412 on an Index, whose panels are ~1440x1600) - and its compositor
 	// does not handle a swapchain that large correctly, silently only displaying a fraction of it even
-	// though the image itself renders and uploads fine. Rendering below the recommendation avoids that,
-	// which is why RenderScalePercent defaults to well under 100. Confirmed on Index/SteamVR; unclear if
-	// this is universal to OpenXR runtimes, hence a setting rather than a constant - another headset may
-	// well want 100 here for a sharper picture.
+	// though the image itself renders and uploads fine. Rendering below the recommendation avoids that.
+	// Confirmed on Index/SteamVR; unclear if this is universal to OpenXR runtimes, hence a setting
+	// rather than a constant - lower RenderScalePercent if a headset shows this symptom.
 	EyeWidth = (int)views[0].recommendedImageRectWidth * RenderScalePercent / 100;
 	EyeHeight = (int)views[0].recommendedImageRectHeight * RenderScalePercent / 100;
 	LogMessage("OpenXR: eye size = " + std::to_string(EyeWidth) + "x" + std::to_string(EyeHeight) +

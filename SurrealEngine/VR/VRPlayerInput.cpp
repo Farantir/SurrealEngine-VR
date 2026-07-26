@@ -165,6 +165,10 @@ void VRPlayerInput::Tick(float timeElapsed)
 
 	vr->SyncInput();
 
+	// Runs unconditionally and as early as possible - independent of menu/wheel/pawn state, so the
+	// calibration is already settled by the time the player actually spawns in.
+	UpdateHeightCalibration();
+
 	// Turning and aim must be set BEFORE UpdateButtons, because a single trigger pull is routed through the
 	// keybinding path inside UpdateButtons and PlayerPawn.Fire() runs synchronously there - it calls
 	// Weapon.Fire() -> Projectile/TraceFire, spawning the shot on the spot. If ViewRotation (and FireOffset)
@@ -261,7 +265,6 @@ void VRPlayerInput::UpdateButtons()
 		engine->vrWheel->Close();
 
 	const int menuPointerHand = MenuPointerHandIndex();
-	const int weaponHand = WeaponHandIndex();
 
 	// Left hand takes the first ButtonCount Joy keys from IK_Joy1, right hand the next, in
 	// VRSubsystem::Button order. VR has already overwritten what those keys are bound to
@@ -281,15 +284,10 @@ void VRPlayerInput::UpdateButtons()
 			ButtonWasDown[hand][button] = isDown;
 			EInputType type = isDown ? IST_Press : IST_Release;
 
-			// The pointer hand's B toggles the menu, standing in for the Escape key so it opens and closes
-			// whatever Escape is bound to for this game - and it does so whether or not a menu is already
-			// up. Routed as IK_Escape rather than a Joy key so it needs no ini binding of its own and can't
-			// be accidentally rebound out from under the player.
-			if (hand == menuPointerHand && button == VRSubsystem::Button_B)
-			{
-				engine->InputEvent(IK_Escape, type);
-				continue;
-			}
+			// The command configured for this exact hand+button in the settings UI (VRSettingsPage). A few
+			// reserved values below are native VR modes rather than ordinary script exec calls, so they're
+			// checked here instead of just being handed to the generic key path at the bottom.
+			const std::string& command = LauncherSettings::Get().VR.ButtonCommands[hand][button];
 
 			// While a menu is up, the pointer hand's trigger is the menu's left mouse button. The routing is
 			// decided at press time and remembered, so a click that closes the menu still gets its matching
@@ -321,56 +319,40 @@ void VRPlayerInput::UpdateButtons()
 				}
 			}
 
-			// A opens/closes the weapon wheel on the weapon hand or the item wheel on the off hand (see
-			// VR/VRWheel.h) - a hardcoded native VR mode, not a bindable command, so it needs no
-			// ButtonCommands slot and is claimed here before the generic path below, the same way B/menu
-			// and the pointer hand's trigger are. Which wheel opens follows the hand, not a setting: the
-			// weapon hand always fans out weapons, the other hand always fans out items.
-			if (button == VRSubsystem::Button_A)
+			// While a wheel is open on this hand, its trigger and trackpad are busy picking an entry, not
+			// firing or activating anything, regardless of what's bound to them.
+			if ((button == VRSubsystem::Button_Trigger || button == VRSubsystem::Button_Trackpad)
+				&& engine->vrWheel && engine->vrWheel->IsOpen() && engine->vrWheel->GetHand() == hand)
+				continue;
+
+			// "Open weapon/item wheel" and "Open menu" are native VR modes rather than ordinary script exec
+			// calls (see VR/VRWheel.h), so they're handled here instead of falling through to the generic
+			// key/exec path below - but which physical button triggers them is just whatever the settings
+			// UI has assigned, same as Fire/AltFire/NextWeapon/etc.
+			if (command == "OpenWeaponWheel" || command == "OpenItemWheel")
 			{
 				UPlayerPawn* player = UObject::TryCast<UPlayerPawn>(engine->viewport->Actor());
 				if (engine->vrWheel)
 				{
 					if (isDown)
-						engine->vrWheel->OpenFor(hand, player, hand == weaponHand);
+						engine->vrWheel->OpenFor(hand, player, command == "OpenWeaponWheel");
 					else
 						engine->vrWheel->Commit(hand, player);
 				}
 				continue;
 			}
-
-			// While a wheel is open on this hand, its trigger and trackpad are busy picking an entry, not
-			// firing or activating anything - suppressed the same way the off hand's are below, just
-			// conditional on the wheel instead of always-off. Checked before the weapon-hand gate so it
-			// also catches the weapon hand's own trigger while the weapon wheel is open on it.
-			if ((button == VRSubsystem::Button_Trigger || button == VRSubsystem::Button_Trackpad)
-				&& engine->vrWheel && engine->vrWheel->IsOpen() && engine->vrWheel->GetHand() == hand)
-				continue;
-
-			// The off hand's trigger activates the current SelectedItem (set via the item wheel) - the
-			// item-wheel counterpart of the weapon hand's fire, and a control that used to do nothing at
-			// all (the check below has always suppressed the off hand's trigger). Exactly
-			// PlayerPawn.ActivateItem's own body: `if (SelectedItem != None) SelectedItem.Activate();` -
-			// decompile-verified (phase-6 plan §9) that Inventory.Activate() self-guards on bActivatable,
-			// so calling it here needs no re-check of that flag. Press only, not release - a trigger pull
-			// is a single activation, not a hold.
-			if (button == VRSubsystem::Button_Trigger && hand != weaponHand && isDown)
+			if (command == "OpenMenu")
 			{
-				UPlayerPawn* player = UObject::TryCast<UPlayerPawn>(engine->viewport->Actor());
-				UInventory* item = player ? player->SelectedItem() : nullptr;
-				if (item && !item->bDeleteMe())
-					CallEvent(item, "Activate");
+				engine->InputEvent(IK_Escape, type);
 				continue;
 			}
-
-			// Weapon fire belongs to the hand holding the gun. The trigger and trackpad are the gun's fire
-			// controls, and both hands bind them to Fire/AltFire by default, so without this the off hand's
-			// trigger and trackpad shoot the weapon too. Only honour them on the weapon hand. The
-			// menu-pointer hand's trigger was already handled (and continue'd) above while a menu is open, so
-			// this never suppresses a menu click; it only stops the off hand from firing during play.
-			if ((button == VRSubsystem::Button_Trigger || button == VRSubsystem::Button_Trackpad)
-				&& hand != weaponHand)
+			// Press only, not release - a one-shot action, not a hold. See RecalibrateHeight.
+			if (command == "RecalibrateHeight")
+			{
+				if (isDown)
+					RecalibrateHeight();
 				continue;
+			}
 
 			engine->InputEvent(ButtonToKey(hand, button), type);
 		}
@@ -734,4 +716,19 @@ void VRPlayerInput::UpdateRoomScale()
 	// Smooth so that walking at a wall slides along it rather than stopping dead, matching how the
 	// pawn's own movement behaves.
 	engine->viewport->Actor()->MoveSmooth(deltaWorld);
+}
+
+void VRPlayerInput::UpdateHeightCalibration()
+{
+	const VRSubsystem::HeadPose& head = engine->vr->GetHead();
+	if (!head.Valid)
+		return;
+
+	// Nothing to do once a reference is held - RecalibrateHeight (a direct call, or the "RecalibrateHeight"
+	// button command in UpdateButtons) is what clears HasHeadZReference to ask for a new one.
+	if (HasHeadZReference)
+		return;
+
+	HeadZOffset = head.Position.z;
+	HasHeadZReference = true;
 }

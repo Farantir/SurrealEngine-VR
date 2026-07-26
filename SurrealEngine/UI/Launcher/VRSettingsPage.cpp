@@ -22,6 +22,40 @@ namespace
 	{
 		"Trigger", "Grip", "A / X", "B / Y", "Thumbstick click", "Menu", "Trackpad"
 	};
+
+	// Fixed set of actions offered in each button's dropdown, display text paired with the underlying
+	// LauncherSettings::VR.ButtonCommands value. "OpenWeaponWheel"/"OpenItemWheel"/"OpenMenu" are native VR
+	// modes handled directly in VRPlayerInput::UpdateButtons; everything else is an ordinary console/exec
+	// command or ini alias, same as a keyboard binding. Index 0 ("Unbound") must stay first - it's the
+	// fallback used for a stored value that doesn't match any entry here (see ButtonCommandIndex).
+	struct ButtonCommandOption { const char* Label; const char* Value; };
+	const ButtonCommandOption ButtonCommandOptions[] =
+	{
+		{ "Unbound", "" },
+		{ "Fire", "Fire" },
+		{ "Alt fire", "AltFire" },
+		{ "Use / activate item", "ActivateItem" },
+		{ "Next weapon", "NextWeapon" },
+		{ "Previous weapon", "PrevWeapon" },
+		{ "Jump", "Jump" },
+		{ "Crouch", "Duck" },
+		{ "Open menu", "OpenMenu" },
+		{ "Open weapon wheel", "OpenWeaponWheel" },
+		{ "Open item wheel", "OpenItemWheel" },
+		{ "Recalibrate height", "RecalibrateHeight" },
+	};
+	const int ButtonCommandOptionCount = (int)(sizeof(ButtonCommandOptions) / sizeof(ButtonCommandOptions[0]));
+
+	// Falls back to "Unbound" (index 0) for a stored command that doesn't match any option - e.g. a config
+	// file hand-edited outside this UI. That silently drops the exotic value once the page is saved again,
+	// but a dropdown of a fixed action list can't represent arbitrary text anyway.
+	int ButtonCommandIndex(const std::string& command)
+	{
+		for (int i = 0; i < ButtonCommandOptionCount; i++)
+			if (command == ButtonCommandOptions[i].Value)
+				return i;
+		return 0;
+	}
 }
 
 VRSettingsPage::VRSettingsPage(Widget* parent)
@@ -121,7 +155,7 @@ VRSettingsPage::VRSettingsPage(Widget* parent)
 	{
 		ButtonLabel[button] = new TextLabel(container);
 		for (int hand = 0; hand < VRSubsystem::HandCount; hand++)
-			ButtonCommand[hand][button] = new LineEdit(container);
+			ButtonCommand[hand][button] = new Dropdown(container);
 	}
 
 	ResetButton = new PushButton(container);
@@ -176,7 +210,7 @@ VRSettingsPage::VRSettingsPage(Widget* parent)
 	ItemRotationOffsetLabel->SetText("Rotation trim pitch / yaw / roll (degrees)");
 	ItemScaleLabel->SetText("Item scale (% of the mesh's own size)");
 
-	ControlsLabel->SetText("Controller buttons (any command or alias; leave blank to unbind):");
+	ControlsLabel->SetText("Controller buttons:");
 	ControlsColumnLeft->SetText("Left hand");
 	ControlsColumnRight->SetText("Right hand");
 	for (int button = 0; button < VRSubsystem::ButtonCount; button++)
@@ -210,9 +244,6 @@ VRSettingsPage::VRSettingsPage(Widget* parent)
 	ItemYawOffset->SetIntrinsicSize(3);
 	ItemRollOffset->SetIntrinsicSize(3);
 	ItemScale->SetIntrinsicSize(3);
-	for (int button = 0; button < VRSubsystem::ButtonCount; button++)
-		for (int hand = 0; hand < VRSubsystem::HandCount; hand++)
-			ButtonCommand[hand][button]->SetIntrinsicSize(12);
 
 	// Order must match VRMovementReference/VRHand/VRTurnMode - both directions go through
 	// GetSelectedItem()/SetSelectedItem() as a plain index.
@@ -237,6 +268,11 @@ VRSettingsPage::VRSettingsPage(Widget* parent)
 	TurnModes->AddItem("Snap");
 	TurnModes->AddItem("Smooth");
 	TurnModes->AddItem("Off (mouse only)");
+
+	for (int button = 0; button < VRSubsystem::ButtonCount; button++)
+		for (int hand = 0; hand < VRSubsystem::HandCount; hand++)
+			for (int i = 0; i < ButtonCommandOptionCount; i++)
+				ButtonCommand[hand][button]->AddItem(ButtonCommandOptions[i].Label);
 
 	EnableVR->SetChecked(settings.VR.Enabled);
 	RenderScale->SetTextInt(settings.VR.RenderScale);
@@ -279,7 +315,7 @@ VRSettingsPage::VRSettingsPage(Widget* parent)
 	ItemScale->SetTextInt(settings.VR.ItemScalePercent);
 	for (int button = 0; button < VRSubsystem::ButtonCount; button++)
 		for (int hand = 0; hand < VRSubsystem::HandCount; hand++)
-			ButtonCommand[hand][button]->SetText(settings.VR.ButtonCommands[hand][button]);
+			ButtonCommand[hand][button]->SetSelectedItem(ButtonCommandIndex(settings.VR.ButtonCommands[hand][button]));
 
 	ResetButton->OnClick = [this]() { OnResetButtonClicked(); };
 
@@ -495,13 +531,13 @@ void VRSettingsPage::Save()
 
 	for (int button = 0; button < VRSubsystem::ButtonCount; button++)
 		for (int hand = 0; hand < VRSubsystem::HandCount; hand++)
-			settings.VR.ButtonCommands[hand][button] = ButtonCommand[hand][button]->GetText();
+			settings.VR.ButtonCommands[hand][button] = ButtonCommandOptions[ButtonCommand[hand][button]->GetSelectedItem()].Value;
 }
 
 void VRSettingsPage::OnResetButtonClicked()
 {
 	EnableVR->SetChecked(false);
-	RenderScale->SetTextInt(60);
+	RenderScale->SetTextInt(100);
 	MovementReferences->SetSelectedItem((int)VRMovementReference::Controller);
 	MovementHand->SetSelectedItem((int)VRHand::Left);
 	MovementDirectionHand->SetSelectedItem((int)VRHand::Left);
@@ -540,10 +576,14 @@ void VRSettingsPage::OnResetButtonClicked()
 	ItemRollOffset->SetTextInt(0);
 	ItemScale->SetTextInt(500);
 
-	// The stock hand layout: fire on both triggers, weapon-cycle on both thumbstick clicks, alt-fire on
-	// both trackpads, everything else unbound. Mirrors LauncherSettings' built-in default.
-	const char* const defaults[VRSubsystem::ButtonCount] = { "Fire", "", "", "", "NextWeapon", "", "AltFire" };
+	// The stock hand layout, matching LauncherSettings' built-in default and the WeaponHand/MenuPointerHand
+	// reset above (both Right): the weapon hand fires, alt-fires and opens the weapon wheel; the off hand
+	// activates the selected item and opens the item wheel; both cycle weapons off the thumbstick click.
+	const char* const offHandDefaults[VRSubsystem::ButtonCount] = { "ActivateItem", "", "OpenItemWheel", "", "NextWeapon", "", "" };
+	const char* const weaponHandDefaults[VRSubsystem::ButtonCount] = { "Fire", "", "OpenWeaponWheel", "OpenMenu", "NextWeapon", "", "AltFire" };
 	for (int button = 0; button < VRSubsystem::ButtonCount; button++)
-		for (int hand = 0; hand < VRSubsystem::HandCount; hand++)
-			ButtonCommand[hand][button]->SetText(defaults[button]);
+	{
+		ButtonCommand[VRSubsystem::HandLeft][button]->SetSelectedItem(ButtonCommandIndex(offHandDefaults[button]));
+		ButtonCommand[VRSubsystem::HandRight][button]->SetSelectedItem(ButtonCommandIndex(weaponHandDefaults[button]));
+	}
 }

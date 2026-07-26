@@ -53,13 +53,24 @@ public:
 	// the previous frame located), and it is the applied one that the camera's position corresponds to,
 	// so it is the one that cancels exactly.
 	//
-	// Reads back the position unchanged when room-scale movement is off, which leaves the whole head
-	// offset in place as a pure view offset - i.e. the pawn stays put and the player's viewpoint moves on
-	// its own.
+	// Reads back the horizontal position unchanged when room-scale movement is off, which leaves the whole
+	// head offset in place as a pure view offset - i.e. the pawn stays put and the player's viewpoint moves
+	// on its own. Height (Z) is always subtracted, regardless of the room-scale setting - see
+	// RecalibrateHeight, just below.
 	vec3 RemoveRoomScaleOffset(const vec3& playSpacePosition) const
 	{
-		return vec3(playSpacePosition.x - AppliedHeadXY.x, playSpacePosition.y - AppliedHeadXY.y, playSpacePosition.z);
+		return vec3(playSpacePosition.x - AppliedHeadXY.x, playSpacePosition.y - AppliedHeadXY.y, playSpacePosition.z - HeadZOffset);
 	}
+
+	// Re-anchors "standing height" on wherever the headset is right now, so the tracked height stops
+	// contributing an offset from here. Needed because the OpenXR LOCAL space's origin sits wherever the
+	// headset happened to be when the session started - if that was low (headset resting on a desk, not
+	// on the player's head yet), every standing height afterwards reads as a large tracked Z, which lands
+	// the camera far above where the game puts the pawn's own eye height. Auto-applied once on the first
+	// head pose seen (UpdateHeightCalibration) for the common case where the headset was already on and
+	// level when the session started; also bindable as a VR button command ("RecalibrateHeight" in
+	// ButtonCommands) for when it wasn't, or the player has since sat down/stood up deliberately.
+	void RecalibrateHeight() { HasHeadZReference = false; }
 
 	// The shot ray this frame, exactly as UpdateAim aimed it: Origin is the weapon hand's muzzle position
 	// (the same point FireOffset was solved to put the script's spawn/trace origin on), Direction is the
@@ -97,12 +108,20 @@ private:
 	// Releases whichever of the jump/crouch aliases is currently held, if either. Safe to call when none is.
 	void ReleaseStickAction();
 	void UpdateRoomScale();
+	// Samples the current head height as the zero reference the first time a valid pose is seen after
+	// RecalibrateHeight resets HasHeadZReference (which includes the very first pose of the session).
+	// Unlike UpdateRoomScale this is not gated on the RoomScaleMovement setting - standing at the correct
+	// height should hold regardless of whether room-scale walking is on.
+	void UpdateHeightCalibration();
 
 	int GetMovementHand() const;          // whose stick is pushed
 	int GetMovementDirectionHand() const; // whose controller aims it (controller reference only)
 
 	vec2 AppliedHeadXY = vec2(0.0f);
 	bool HasHeadReference = false;
+
+	float HeadZOffset = 0.0f;
+	bool HasHeadZReference = false;
 
 	bool ButtonWasDown[VRSubsystem::HandCount][VRSubsystem::ButtonCount] = {};
 	// Whether the pointer hand's trigger press was routed to a menu mouse click, so its release routes the

@@ -81,8 +81,7 @@ public:
 	{
 		bool Enabled = false;
 		// Percentage of the OpenXR runtime's recommended per-eye resolution to actually render at.
-		// Defaults well below 100 deliberately - see OpenXRSubsystem::InitSession.
-		int RenderScale = 60;
+		int RenderScale = 100;
 
 		// Thumbstick movement. The movement stick is on MovementHand; the turn stick is on the other one.
 		VRMovementReference MovementReference = VRMovementReference::Controller;
@@ -198,13 +197,20 @@ public:
 		// Empty means unbound. Any console/exec command or ini alias works, exactly like a Joy binding -
 		// VR claims the Joy keys and writes these at startup (see VRPlayerInput::ApplyKeybindings). Kept
 		// here rather than in the game ini because Epic's stock Joy defaults are gamepad-shaped and wrong
-		// for hands; see the notes in VRPlayerInput.cpp.
+		// for hands; see the notes in VRPlayerInput.cpp. "OpenWeaponWheel", "OpenItemWheel", "OpenMenu" and
+		// "RecalibrateHeight" are additionally reserved for native VR modes (see
+		// VRPlayerInput::UpdateButtons) rather than being ordinary script commands.
+		//
+		// The two hands get different defaults on purpose, matching the default WeaponHand/MenuPointerHand
+		// of Right below: the weapon hand fires and opens the weapon wheel, the off hand activates the
+		// selected item and opens the item wheel. Rebinding WeaponHand/MenuPointerHand does not swap these -
+		// re-assign the buttons here to match if you do.
 		std::string ButtonCommands[VRSubsystem::HandCount][VRSubsystem::ButtonCount] =
 		{
-			// Left hand:  Trigger,  Grip, A,  B,  ThumbstickClick, Menu, Trackpad
-			{ "Fire", "", "", "", "NextWeapon", "", "AltFire" },
-			// Right hand: Trigger,  Grip, A,  B,  ThumbstickClick, Menu, Trackpad
-			{ "Fire", "", "", "", "NextWeapon", "", "AltFire" },
+			// Left hand (off hand by default):  Trigger,        Grip, A,               B,  ThumbstickClick, Menu, Trackpad
+			{ "ActivateItem", "", "OpenItemWheel", "", "NextWeapon", "", "" },
+			// Right hand (weapon hand by default): Trigger, Grip, A,                 B,          ThumbstickClick, Menu, Trackpad
+			{ "Fire", "", "OpenWeaponWheel", "OpenMenu", "NextWeapon", "", "AltFire" },
 		};
 	} VR;
 
